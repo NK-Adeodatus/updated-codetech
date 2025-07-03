@@ -7,57 +7,68 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { BookOpen, Trophy, Users, TrendingUp, ArrowRight, Star, Code, Brain, Zap } from "lucide-react"
 import Link from "next/link"
+import { getUserSubjects } from "@/lib/api"
 
 export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     setIsLoggedIn(!!token)
+    if (token) {
+      getUserSubjects(token)
+        .then((userSubjects) => setSubjects(userSubjects))
+        .catch(() => setSubjects([]))
+        .finally(() => setLoading(false))
+    } else {
+      // Guest: show all subjects with 0% progress
+      setSubjects([
+        {
+          id: 1,
+          name: "Python Programming",
+          description: "Master Python fundamentals and advanced concepts",
+          levels: 5,
+          totalQuizzes: 50,
+          icon: "🐍",
+          color: "bg-blue-500",
+          progress: 0,
+        },
+        {
+          id: 2,
+          name: "Machine Learning",
+          description: "Understand ML algorithms and theoretical foundations",
+          levels: 4,
+          totalQuizzes: 40,
+          icon: "🤖",
+          color: "bg-purple-500",
+          progress: 0,
+        },
+        {
+          id: 3,
+          name: "JavaScript",
+          description: "Learn JavaScript concepts and modern ES6+ features",
+          levels: 4,
+          totalQuizzes: 45,
+          icon: "⚡",
+          color: "bg-yellow-500",
+          progress: 0,
+        },
+        {
+          id: 4,
+          name: "C Programming",
+          description: "Build strong foundations in C programming language",
+          levels: 3,
+          totalQuizzes: 35,
+          icon: "⚙️",
+          color: "bg-green-500",
+          progress: 0,
+        },
+      ])
+      setLoading(false)
+    }
   }, [])
-
-  const subjects = [
-    {
-      id: 1,
-      name: "Python Programming",
-      description: "Master Python fundamentals and advanced concepts",
-      levels: 5,
-      totalQuizzes: 50,
-      icon: "🐍",
-      color: "bg-blue-500",
-      progress: 65,
-    },
-    {
-      id: 2,
-      name: "Machine Learning",
-      description: "Understand ML algorithms and theoretical foundations",
-      levels: 4,
-      totalQuizzes: 40,
-      icon: "🤖",
-      color: "bg-purple-500",
-      progress: 30,
-    },
-    {
-      id: 3,
-      name: "JavaScript",
-      description: "Learn JavaScript concepts and modern ES6+ features",
-      levels: 4,
-      totalQuizzes: 45,
-      icon: "⚡",
-      color: "bg-yellow-500",
-      progress: 80,
-    },
-    {
-      id: 4,
-      name: "C Programming",
-      description: "Build strong foundations in C programming language",
-      levels: 3,
-      totalQuizzes: 35,
-      icon: "⚙️",
-      color: "bg-green-500",
-      progress: 20,
-    },
-  ]
 
   const stats = [
     { label: "Active Students", value: "1,247", icon: Users, color: "text-blue-600" },
@@ -209,7 +220,7 @@ export default function HomePage() {
                     </div>
                     <Progress value={subject.progress} className="h-2" />
                     <div className="flex justify-between text-sm text-slate-600">
-                      <span>{subject.levels} Levels</span>
+                      <span>{Array.isArray(subject.levels) ? subject.levels.length : subject.levels} Levels</span>
                       <span>{subject.totalQuizzes} Quizzes</span>
                     </div>
                   </div>

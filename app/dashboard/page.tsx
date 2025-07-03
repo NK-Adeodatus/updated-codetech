@@ -22,122 +22,78 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { getMe, getDashboardData, getUserSubjects, getUserActivity, getUserStats } from "@/lib/api"
+
+const iconMap: Record<string, React.ElementType> = {
+  BookOpen,
+  Target,
+  TrendingUp,
+  Trophy,
+}
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const router = useRouter()
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [stats, setStats] = useState<any[]>([])
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [userStats, setUserStats] = useState<any>({ totalCompleted: 0, avgScore: 0, streak: 0, rank: '-' })
 
   useEffect(() => {
     const token = localStorage.getItem("authToken")
-    const userData = localStorage.getItem("user")
-
-    if (!token || !userData) {
+    if (!token) {
       router.push("/login")
       return
     }
+    Promise.all([
+      getDashboardData(),
+      getUserSubjects(token),
+      getUserActivity(token),
+      getUserStats(token),
+    ])
+      .then(([dashboard, userSubjects, activity, stats]) => {
+        setStats(dashboard.stats)
+        setRecentActivity(activity)
+        setSubjects(userSubjects)
+        setUserStats(stats)
+      })
+      .catch(() => setError("Failed to load dashboard data"))
+      .finally(() => setLoading(false))
+  }, [router])
 
-    setUser(JSON.parse(userData))
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      router.push("/login")
+      return
+    }
+    getMe(token)
+      .then(setUser)
+      .catch(() => {
+        localStorage.removeItem("authToken")
+        router.push("/login")
+      })
   }, [router])
 
   const handleLogout = () => {
     localStorage.removeItem("authToken")
-    localStorage.removeItem("user")
     router.push("/")
   }
 
-  const subjects = [
-    {
-      id: 1,
-      name: "Python Programming",
-      description: "Master Python fundamentals and advanced concepts",
-      icon: "🐍",
-      color: "bg-blue-500",
-      progress: 65,
-      currentLevel: 3,
-      totalLevels: 5,
-      completedQuizzes: 32,
-      totalQuizzes: 50,
-      levels: [
-        { id: 1, name: "Variables & Data Types", completed: true, quizzes: 10 },
-        { id: 2, name: "Control Structures", completed: true, quizzes: 12 },
-        { id: 3, name: "Functions & Modules", completed: false, quizzes: 10, current: true },
-        { id: 4, name: "Object-Oriented Programming", completed: false, quizzes: 8 },
-        { id: 5, name: "Advanced Topics", completed: false, quizzes: 10 },
-      ],
-    },
-    {
-      id: 2,
-      name: "Machine Learning",
-      description: "Understand ML algorithms and theoretical foundations",
-      icon: "🤖",
-      color: "bg-purple-500",
-      progress: 30,
-      currentLevel: 2,
-      totalLevels: 4,
-      completedQuizzes: 12,
-      totalQuizzes: 40,
-      levels: [
-        { id: 1, name: "ML Fundamentals", completed: true, quizzes: 10 },
-        { id: 2, name: "Supervised Learning", completed: false, quizzes: 10, current: true },
-        { id: 3, name: "Unsupervised Learning", completed: false, quizzes: 10 },
-        { id: 4, name: "Deep Learning Basics", completed: false, quizzes: 10 },
-      ],
-    },
-    {
-      id: 3,
-      name: "JavaScript",
-      description: "Learn JavaScript concepts and modern ES6+ features",
-      icon: "⚡",
-      color: "bg-yellow-500",
-      progress: 80,
-      currentLevel: 4,
-      totalLevels: 4,
-      completedQuizzes: 36,
-      totalQuizzes: 45,
-      levels: [
-        { id: 1, name: "JS Fundamentals", completed: true, quizzes: 12 },
-        { id: 2, name: "DOM Manipulation", completed: true, quizzes: 11 },
-        { id: 3, name: "Async JavaScript", completed: true, quizzes: 13 },
-        { id: 4, name: "Modern ES6+", completed: false, quizzes: 9, current: true },
-      ],
-    },
-    {
-      id: 4,
-      name: "C Programming",
-      description: "Build strong foundations in C programming language",
-      icon: "⚙️",
-      color: "bg-green-500",
-      progress: 20,
-      currentLevel: 1,
-      totalLevels: 3,
-      completedQuizzes: 7,
-      totalQuizzes: 35,
-      levels: [
-        { id: 1, name: "C Basics & Syntax", completed: false, quizzes: 12, current: true },
-        { id: 2, name: "Pointers & Memory", completed: false, quizzes: 12 },
-        { id: 3, name: "Advanced C", completed: false, quizzes: 11 },
-      ],
-    },
-  ]
-
-  const recentActivity = [
-    { subject: "Python Programming", action: "Completed Quiz: Functions Basics", time: "2 hours ago", score: 85 },
-    { subject: "JavaScript", action: "Started Level: Modern ES6+", time: "1 day ago", score: null },
-    { subject: "Machine Learning", action: "Completed Quiz: Linear Regression", time: "2 days ago", score: 92 },
-    { subject: "Python Programming", action: "Completed Quiz: Loops & Iterations", time: "3 days ago", score: 78 },
-  ]
-
-  const stats = [
-    { label: "Total Quizzes Completed", value: 87, icon: BookOpen, color: "text-blue-600" },
-    { label: "Average Score", value: "82%", icon: Target, color: "text-green-600" },
-    { label: "Current Streak", value: "5 days", icon: TrendingUp, color: "text-purple-600" },
-    { label: "Rank Position", value: "#23", icon: Trophy, color: "text-yellow-600" },
-  ]
-
-  if (!user) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">Loading...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">{error}</div>
       </div>
     )
   }
@@ -165,15 +121,14 @@ export default function DashboardPage() {
               <div className="flex items-center space-x-3">
                 <Avatar>
                   <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                    {user.name
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")}
+                    {user?.name
+                      ? user.name.split(" ").map((n: string) => n[0]).join("")
+                      : ""}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden md:block">
-                  <p className="font-medium text-slate-900">{user.name}</p>
-                  <p className="text-sm text-slate-600">{user.email}</p>
+                  <p className="font-medium text-slate-900">{user?.name || ""}</p>
+                  <p className="text-sm text-slate-600">{user?.email || ""}</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="w-4 h-4" />
@@ -187,25 +142,56 @@ export default function DashboardPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome back, {user.name.split(" ")[0]}! 👋</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome back, {user?.name ? user.name.split(" ")[0] : ""}! 👋</h1>
           <p className="text-slate-600">Ready to continue your learning journey?</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => (
-            <Card key={index} className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <stat.icon className={`w-8 h-8 ${stat.color}`} />
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
-                    <div className="text-xs text-slate-600">{stat.label}</div>
-                  </div>
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <BookOpen className="w-8 h-8 text-blue-600" />
+                <div>
+                  <div className="text-2xl font-bold text-slate-900">{userStats.totalCompleted}</div>
+                  <div className="text-xs text-slate-600">Total Quizzes Completed</div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <TrendingUp className="w-8 h-8 text-green-600" />
+                <div>
+                  <div className="text-2xl font-bold text-slate-900">{userStats.avgScore}%</div>
+                  <div className="text-xs text-slate-600">Average Score</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <Clock className="w-8 h-8 text-purple-600" />
+                <div>
+                  <div className="text-2xl font-bold text-slate-900">{userStats.streak} days</div>
+                  <div className="text-xs text-slate-600">Current Streak</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <Trophy className="w-8 h-8 text-yellow-500" />
+                <div>
+                  <div className="text-2xl font-bold text-slate-900">#{userStats.rank}</div>
+                  <div className="text-xs text-slate-600">Rank Position</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -299,11 +285,11 @@ export default function DashboardPage() {
 
                       {/* Level Progress */}
                       <div className="space-y-2 mb-4">
-                        {subject.levels.map((level) => (
+                        {subject.levels.map((level: any) => (
                           <div key={level.id} className="flex items-center space-x-3 text-sm">
                             {level.completed ? (
                               <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : level.current ? (
+                            ) : level.unlocked ? (
                               <div className="w-4 h-4 border-2 border-blue-500 rounded-full bg-blue-100" />
                             ) : (
                               <Lock className="w-4 h-4 text-slate-400" />
@@ -312,7 +298,7 @@ export default function DashboardPage() {
                               className={
                                 level.completed
                                   ? "text-green-700"
-                                  : level.current
+                                  : level.unlocked
                                     ? "text-blue-700 font-medium"
                                     : "text-slate-500"
                               }
@@ -326,12 +312,28 @@ export default function DashboardPage() {
                         ))}
                       </div>
 
-                      <Link href={`/subject/${subject.id}`}>
-                        <Button className="w-full">
-                          {subject.progress === 0 ? "Start Learning" : "Continue"}
-                          <ArrowRight className="ml-2 w-4 h-4" />
-                        </Button>
-                      </Link>
+                      {/* Start/Continue/Review Button */}
+                      {(() => {
+                        const firstUnlocked = subject.levels.find((level: any) => level.unlocked && !level.completed);
+                        if (firstUnlocked) {
+                          return (
+                            <Link href={`/quiz/${subject.id}/${firstUnlocked.id}`}>
+                              <Button className="w-full">
+                                {subject.progress === 0 ? "Start Learning" : "Continue"}
+                                <ArrowRight className="ml-2 w-4 h-4" />
+                              </Button>
+                            </Link>
+                          );
+                        } else {
+                          // All levels completed
+                          return (
+                            <Button className="w-full" variant="outline" disabled>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              All Complete
+                            </Button>
+                          );
+                        }
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -384,14 +386,6 @@ export default function DashboardPage() {
                     View Leaderboard
                   </Button>
                 </Link>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <Star className="w-4 h-4 mr-2" />
-                  Review Favorites
-                </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <Target className="w-4 h-4 mr-2" />
-                  Set Learning Goals
-                </Button>
               </CardContent>
             </Card>
           </div>

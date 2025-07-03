@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, Clock, CheckCircle, XCircle, ArrowRight, BookOpen, ExternalLink, RotateCcw } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
+import { updateUserProgress, completeQuizLevel, getUserSubjects, getUserActivity, submitQuiz } from "@/lib/api"
 
 export default function QuizPage() {
   const params = useParams()
@@ -23,6 +24,8 @@ export default function QuizPage() {
   const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
   const [quizCompleted, setQuizCompleted] = useState(false)
   const [score, setScore] = useState(0)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Sample quiz data
   const quizData = {
@@ -213,7 +216,7 @@ export default function QuizPage() {
     },
   }
 
-  const currentQuiz = quizData[subjectId as keyof typeof quizData]?.[levelId as keyof (typeof quizData)[1]]
+  const currentQuiz = (quizData[subjectId as keyof typeof quizData]?.[levelId as keyof (typeof quizData)[1]]) as any;
   const currentQuestion = currentQuiz?.questions[currentQuestionIndex]
 
   // Timer effect
@@ -251,11 +254,11 @@ export default function QuizPage() {
     setShowResult(true)
   }
 
-  const handleQuizComplete = () => {
+  const handleQuizComplete = async () => {
     const finalAnswers = { ...answers, [currentQuestionIndex]: selectedAnswer }
     let correctCount = 0
 
-    currentQuiz.questions.forEach((question, index) => {
+    currentQuiz.questions.forEach((question: any, index: number) => {
       if (finalAnswers[index] === question.correct) {
         correctCount++
       }
@@ -263,6 +266,18 @@ export default function QuizPage() {
 
     setScore(Math.round((correctCount / currentQuiz.questions.length) * 100))
     setQuizCompleted(true)
+
+    // --- SUBMIT QUIZ TO BACKEND ---
+    try {
+      const token = localStorage.getItem("authToken");
+      await submitQuiz(subjectId, levelId, finalAnswers, token);
+      // After successful submission, redirect to subject page to refresh progress
+      setTimeout(() => {
+        window.location.href = `/subject/${subjectId}`;
+      }, 1200); // Give user a moment to see their score
+    } catch {
+      setError("Failed to submit quiz");
+    }
   }
 
   const formatTime = (seconds: number) => {
@@ -270,6 +285,19 @@ export default function QuizPage() {
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
+
+  const handleSubmit = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await submitQuiz(subjectId, levelId, answers, token);
+      setResult(res);
+      setQuiz(null);
+      // Optionally, refetch user subjects/activity or refresh dashboard/subject page
+      // router.refresh(); // Uncomment if using Next.js 13+ for route refresh
+    } catch {
+      setError("Failed to submit quiz");
+    }
+  };
 
   if (!currentQuiz) {
     return (
@@ -291,9 +319,8 @@ export default function QuizPage() {
           <Card className="max-w-2xl mx-auto border-0 shadow-xl bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center">
               <div
-                className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
-                  score >= 70 ? "bg-green-100" : "bg-red-100"
-                }`}
+                className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${score >= 70 ? "bg-green-100" : "bg-red-100"
+                  }`}
               >
                 {score >= 70 ? (
                   <CheckCircle className="w-8 h-8 text-green-600" />
@@ -312,7 +339,7 @@ export default function QuizPage() {
                 <p className="text-slate-600">
                   You got{" "}
                   {
-                    Object.values(answers).filter((answer, index) => answer === currentQuiz.questions[index]?.correct)
+                    Object.values(answers).filter((answer: string, index: number) => answer === currentQuiz.questions[index]?.correct)
                       .length
                   }{" "}
                   out of {currentQuiz.questions.length} questions correct
@@ -321,16 +348,15 @@ export default function QuizPage() {
 
               <div className="space-y-4">
                 <h3 className="font-semibold text-slate-900">Question Review:</h3>
-                {currentQuiz.questions.map((question, index) => {
+                {currentQuiz.questions.map((question: any, index: number) => {
                   const userAnswer = answers[index]
                   const isCorrect = userAnswer === question.correct
 
                   return (
                     <div
                       key={question.id}
-                      className={`p-4 rounded-lg border-2 ${
-                        isCorrect ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
-                      }`}
+                      className={`p-4 rounded-lg border-2 ${isCorrect ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
+                        }`}
                     >
                       <div className="flex items-start space-x-3">
                         {isCorrect ? (
@@ -350,7 +376,7 @@ export default function QuizPage() {
                               <div className="mt-3">
                                 <p className="font-medium text-slate-700 mb-2">Additional Resources:</p>
                                 <div className="space-y-1">
-                                  {question.resources.map((resource, resourceIndex) => (
+                                  {question.resources.map((resource: any, resourceIndex: number) => (
                                     <a
                                       key={resourceIndex}
                                       href={resource.url}
@@ -374,12 +400,14 @@ export default function QuizPage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Link href={`/subject/${subjectId}`} className="flex-1">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Subject
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent flex-1"
+                  onClick={() => window.location.href = `/subject/${subjectId}`}
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Subject
+                </Button>
                 <Button onClick={() => window.location.reload()} className="flex-1">
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Retake Quiz
@@ -453,21 +481,19 @@ export default function QuizPage() {
               <div className="text-lg text-slate-900 leading-relaxed">{currentQuestion.question}</div>
 
               <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => (
+                {currentQuestion.options.map((option: string, index: number) => (
                   <button
                     key={index}
                     onClick={() => handleAnswerSelect(option)}
-                    className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
-                      selectedAnswer === option
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`w-full p-4 text-left rounded-lg border-2 transition-all ${selectedAnswer === option
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     <div className="flex items-center space-x-3">
                       <div
-                        className={`w-4 h-4 rounded-full border-2 ${
-                          selectedAnswer === option ? "border-blue-500 bg-blue-500" : "border-slate-300"
-                        }`}
+                        className={`w-4 h-4 rounded-full border-2 ${selectedAnswer === option ? "border-blue-500 bg-blue-500" : "border-slate-300"
+                          }`}
                       >
                         {selectedAnswer === option && <div className="w-full h-full rounded-full bg-white scale-50" />}
                       </div>
@@ -479,11 +505,10 @@ export default function QuizPage() {
 
               {showResult && (
                 <Alert
-                  className={`${
-                    selectedAnswer === currentQuestion.correct
-                      ? "border-green-200 bg-green-50"
-                      : "border-red-200 bg-red-50"
-                  }`}
+                  className={`${selectedAnswer === currentQuestion.correct
+                    ? "border-green-200 bg-green-50"
+                    : "border-red-200 bg-red-50"
+                    }`}
                 >
                   <div className="flex items-start space-x-3">
                     {selectedAnswer === currentQuestion.correct ? (
@@ -503,7 +528,7 @@ export default function QuizPage() {
                           <div>
                             <div className="font-medium text-slate-700 mb-2">Additional Resources:</div>
                             <div className="space-y-1">
-                              {currentQuestion.resources.map((resource, resourceIndex) => (
+                              {currentQuestion.resources.map((resource: any, resourceIndex: number) => (
                                 <a
                                   key={resourceIndex}
                                   href={resource.url}

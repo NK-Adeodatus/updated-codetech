@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Code, Eye, EyeOff, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { login } from "@/lib/api"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -25,25 +26,15 @@ export default function LoginPage() {
     setIsLoading(true)
     setError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email === "student@alu.edu" && password === "password123") {
-        localStorage.setItem("authToken", "mock-jwt-token")
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: 1,
-            name: "John Doe",
-            email: "student@alu.edu",
-            createdAt: new Date().toISOString(),
-          }),
-        )
-        router.push("/dashboard")
-      } else {
-        setError("Invalid email or password")
-      }
+    try {
+      const data = await login({ email, password })
+      localStorage.setItem("authToken", data.access_token)
+      router.push("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Login failed")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (

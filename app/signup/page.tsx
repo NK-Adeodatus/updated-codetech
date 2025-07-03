@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Code, Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signup } from "@/lib/api"
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -49,20 +50,15 @@ export default function SignUpPage() {
       return
     }
 
-    // Simulate API call
-    setTimeout(() => {
-      const userData = {
-        id: Date.now(),
-        name: formData.name,
-        email: formData.email,
-        createdAt: new Date().toISOString(),
-      }
-
-      localStorage.setItem("authToken", "mock-jwt-token")
-      localStorage.setItem("user", JSON.stringify(userData))
-      router.push("/dashboard")
+    try {
+      await signup({ email: formData.email, password: formData.password })
+      // On success, redirect to login page
+      router.push("/login")
+    } catch (err: any) {
+      setError(err.message || "Signup failed")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const passwordRequirements = [
