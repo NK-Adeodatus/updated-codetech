@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Clock, CheckCircle, XCircle, ArrowRight, BookOpen, ExternalLink, RotateCcw } from "lucide-react"
+import { ArrowLeft, Clock, CheckCircle, XCircle, ArrowRight, BookOpen, ExternalLink, RotateCcw, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
-import { updateUserProgress, completeQuizLevel, getUserSubjects, getUserActivity, submitQuiz } from "@/lib/api"
+import { updateUserProgress, completeQuizLevel, getUserSubjects, getUserActivity, submitQuiz, getQuiz } from "@/lib/api"
 
 export default function QuizPage() {
   const params = useParams()
@@ -26,257 +26,92 @@ export default function QuizPage() {
   const [score, setScore] = useState(0)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [currentQuiz, setCurrentQuiz] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Sample quiz data
-  const quizData = {
-    1: {
-      // Python Programming
-      1: {
-        // Variables & Data Types
-        title: "Python Variables & Data Types",
-        description: "Test your understanding of Python variables and basic data types",
-        timeLimit: 300,
-        questions: [
-          {
-            id: 1,
-            question: "Which of the following is NOT a valid Python variable name?",
-            options: ["my_var", "2variable", "_private", "Variable"],
-            correct: "2variable",
-            explanation:
-              "Variable names in Python cannot start with a number. They must start with a letter or underscore.",
-            resources: [
-              {
-                title: "Python Variable Naming Rules",
-                url: "https://docs.python.org/3/tutorial/introduction.html#using-python-as-a-calculator",
-              },
-              { title: "PEP 8 Style Guide", url: "https://pep8.org/" },
-            ],
-          },
-          {
-            id: 2,
-            question: "What is the data type of the value 3.14 in Python?",
-            options: ["int", "float", "double", "decimal"],
-            correct: "float",
-            explanation: "In Python, decimal numbers are represented as float data type.",
-            resources: [
-              {
-                title: "Python Numeric Types",
-                url: "https://docs.python.org/3/library/stdtypes.html#numeric-types-int-float-complex",
-              },
-            ],
-          },
-          {
-            id: 3,
-            question: "Which function is used to determine the type of a variable in Python?",
-            options: ["typeof()", "type()", "gettype()", "datatype()"],
-            correct: "type()",
-            explanation: "The type() function returns the type of an object in Python.",
-            resources: [
-              { title: "Built-in Functions - type()", url: "https://docs.python.org/3/library/functions.html#type" },
-            ],
-          },
-          {
-            id: 4,
-            question: 'What will be the output of: print(type("Hello"))?',
-            options: ["<class 'string'>", "<class 'str'>", "<type 'str'>", "string"],
-            correct: "<class 'str'>",
-            explanation: "In Python 3, strings are of type 'str' and type() returns <class 'str'>.",
-            resources: [
-              {
-                title: "Python String Type",
-                url: "https://docs.python.org/3/library/stdtypes.html#text-sequence-type-str",
-              },
-            ],
-          },
-          {
-            id: 5,
-            question: "Which of the following creates a string in Python?",
-            options: [
-              "Both single and double quotes",
-              "Only double quotes",
-              "Only single quotes",
-              "Only triple quotes",
-            ],
-            correct: "Both single and double quotes",
-            explanation: "Python allows strings to be created using both single quotes (') and double quotes (\").",
-            resources: [
-              {
-                title: "Python String Literals",
-                url: "https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals",
-              },
-            ],
-          },
-        ],
-      },
-      3: {
-        // Functions & Modules
-        title: "Python Functions & Modules",
-        description: "Test your knowledge of Python functions and module system",
-        timeLimit: 300,
-        questions: [
-          {
-            id: 1,
-            question: "What keyword is used to define a function in Python?",
-            options: ["function", "def", "define", "func"],
-            correct: "def",
-            explanation: "The 'def' keyword is used to define functions in Python.",
-            resources: [
-              {
-                title: "Python Functions",
-                url: "https://docs.python.org/3/tutorial/controlflow.html#defining-functions",
-              },
-            ],
-          },
-          {
-            id: 2,
-            question: "What does the return statement do in a Python function?",
-            options: [
-              "Ends the function",
-              "Returns a value",
-              "Both ends the function and returns a value",
-              "Prints a value",
-            ],
-            correct: "Both ends the function and returns a value",
-            explanation: "The return statement exits the function and optionally returns a value to the caller.",
-            resources: [
-              {
-                title: "Return Statement",
-                url: "https://docs.python.org/3/reference/simple_stmts.html#the-return-statement",
-              },
-            ],
-          },
-          {
-            id: 3,
-            question: "How do you import a specific function from a module?",
-            options: [
-              "import function from module",
-              "from module import function",
-              "import module.function",
-              "get function from module",
-            ],
-            correct: "from module import function",
-            explanation: "Use 'from module import function' to import specific functions from a module.",
-            resources: [
-              {
-                title: "Import Statement",
-                url: "https://docs.python.org/3/reference/simple_stmts.html#the-import-statement",
-              },
-            ],
-          },
-        ],
-      },
-    },
-    2: {
-      // Machine Learning
-      1: {
-        // ML Fundamentals
-        title: "Machine Learning Fundamentals",
-        description: "Test your understanding of basic ML concepts",
-        timeLimit: 300,
-        questions: [
-          {
-            id: 1,
-            question: "What is the main goal of supervised learning?",
-            options: [
-              "Find hidden patterns",
-              "Learn from labeled data",
-              "Reduce dimensionality",
-              "Cluster similar data",
-            ],
-            correct: "Learn from labeled data",
-            explanation: "Supervised learning uses labeled training data to learn a mapping from inputs to outputs.",
-            resources: [
-              {
-                title: "Supervised Learning Overview",
-                url: "https://scikit-learn.org/stable/supervised_learning.html",
-              },
-            ],
-          },
-          {
-            id: 2,
-            question: "What is overfitting in machine learning?",
-            options: [
-              "Model is too simple",
-              "Model performs well on training but poorly on test data",
-              "Model has too few parameters",
-              "Model trains too slowly",
-            ],
-            correct: "Model performs well on training but poorly on test data",
-            explanation:
-              "Overfitting occurs when a model learns the training data too well, including noise, leading to poor generalization.",
-            resources: [
-              {
-                title: "Overfitting and Underfitting",
-                url: "https://scikit-learn.org/stable/auto_examples/model_selection/plot_underfitting_overfitting.html",
-              },
-            ],
-          },
-        ],
-      },
-    },
-  }
+  // Fetch quiz data from backend
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      try {
+        setLoading(true)
+        const quizData = await getQuiz(subjectId, levelId)
+        setCurrentQuiz(quizData)
+        setTimeLeft(300) // Reset timer
+      } catch (err) {
+        setError("Failed to load quiz")
+        console.error("Error fetching quiz:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const currentQuiz = (quizData[subjectId as keyof typeof quizData]?.[levelId as keyof (typeof quizData)[1]]) as any;
-  const currentQuestion = currentQuiz?.questions[currentQuestionIndex]
+    if (subjectId && levelId) {
+      fetchQuiz()
+    }
+  }, [subjectId, levelId])
 
   // Timer effect
   useEffect(() => {
-    if (timeLeft > 0 && !quizCompleted) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
-      return () => clearTimeout(timer)
-    } else if (timeLeft === 0) {
-      handleQuizComplete()
-    }
-  }, [timeLeft, quizCompleted])
+    if (!currentQuiz || quizCompleted) return
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          handleShowResult()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [currentQuiz, quizCompleted])
+
+  const currentQuestion = currentQuiz?.questions?.[currentQuestionIndex]
 
   const handleAnswerSelect = (answer: string) => {
     setSelectedAnswer(answer)
+    setAnswers((prev) => ({ ...prev, [currentQuestionIndex]: answer }))
   }
 
   const handleNextQuestion = () => {
     if (selectedAnswer) {
-      setAnswers((prev) => ({
-        ...prev,
-        [currentQuestionIndex]: selectedAnswer,
-      }))
-
       if (currentQuestionIndex < currentQuiz.questions.length - 1) {
         setCurrentQuestionIndex(currentQuestionIndex + 1)
         setSelectedAnswer(null)
         setShowResult(false)
       } else {
-        handleQuizComplete()
+        handleShowResult()
       }
     }
   }
 
   const handleShowResult = () => {
     setShowResult(true)
-  }
-
-  const handleQuizComplete = async () => {
-    const finalAnswers = { ...answers, [currentQuestionIndex]: selectedAnswer }
+    setQuizCompleted(true)
+    // Calculate score
     let correctCount = 0
-
     currentQuiz.questions.forEach((question: any, index: number) => {
-      if (finalAnswers[index] === question.correct) {
+      if (answers[index] === question.correct) {
         correctCount++
       }
     })
-
     setScore(Math.round((correctCount / currentQuiz.questions.length) * 100))
-    setQuizCompleted(true)
+  }
 
-    // --- SUBMIT QUIZ TO BACKEND ---
+  const handleQuizComplete = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      await submitQuiz(subjectId, levelId, finalAnswers, token);
-      // After successful submission, redirect to subject page to refresh progress
-      setTimeout(() => {
-        window.location.href = `/subject/${subjectId}`;
-      }, 1200); // Give user a moment to see their score
-    } catch {
-      setError("Failed to submit quiz");
+      const token = localStorage.getItem("authToken")
+      if (token) {
+        await submitQuiz(subjectId, levelId, answers, token)
+        await completeQuizLevel(subjectId, levelId, token)
+        // Redirect to subject page to refresh progress
+        router.push(`/subject/${subjectId}`)
+      }
+    } catch (err) {
+      console.error("Error completing quiz:", err)
+      // Still redirect even if submission fails
+      router.push(`/subject/${subjectId}`)
     }
   }
 
@@ -291,7 +126,7 @@ export default function QuizPage() {
       const token = localStorage.getItem("authToken");
       const res = await submitQuiz(subjectId, levelId, answers, token);
       setResult(res);
-      setQuiz(null);
+      setCurrentQuiz(null);
       // Optionally, refetch user subjects/activity or refresh dashboard/subject page
       // router.refresh(); // Uncomment if using Next.js 13+ for route refresh
     } catch {
@@ -299,11 +134,26 @@ export default function QuizPage() {
     }
   };
 
-  if (!currentQuiz) {
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <h1 className="text-xl font-semibold text-slate-900 mb-2">Loading Quiz...</h1>
+          <p className="text-slate-600">Please wait while we prepare your quiz</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error || !currentQuiz) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 mb-4">Quiz Not Found</h1>
+          <p className="text-slate-600 mb-6">The quiz you're looking for doesn't exist or is not available.</p>
           <Link href="/dashboard">
             <Button>Back to Dashboard</Button>
           </Link>

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 
 # --- Config ---
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -28,6 +28,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    name = Column(String, default="")
+    role = Column(String, default="user")
 
 class UserProgress(Base):
     __tablename__ = "user_progress"
@@ -77,10 +79,14 @@ def create_access_token(data: dict):
 def get_user(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
 
+
+
 # --- Schemas ---
 class UserCreate(BaseModel):
     email: str
     password: str
+    name: str = ""
+    role: str = "user"
 
 class Token(BaseModel):
     access_token: str
@@ -89,8 +95,21 @@ class Token(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: str
+    name: str = ""
+    role: str = "user"
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class UserWithProgress(BaseModel):
+    id: int
+    email: str
+    name: str = ""
+    role: str = "user"
+    total_completed: int = 0
+    avg_score: float = 0.0
+    last_activity: str = ""
+    class Config:
+        from_attributes = True
 
 # --- Sample Quiz Data (move to DB in production) ---
 QUIZ_DATA = {
@@ -164,7 +183,7 @@ QUIZ_DATA = {
     3: {  # JavaScript
         1: {
             "title": "JavaScript Basics",
-            "description": "Test your understanding of JavaScript fundamentals",
+            "description": "Variables, types, and operators",
             "questions": [
                 {
                     "id": 1,
@@ -186,13 +205,328 @@ QUIZ_DATA = {
                         {"title": "MDN typeof", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof"},
                     ],
                 },
+                {
+                    "id": 3,
+                    "question": "Which operator is used for strict equality comparison in JavaScript?",
+                    "options": ["==", "===", "=", "!="],
+                    "correct": "===",
+                    "explanation": "The === operator checks both value and type equality.",
+                    "resources": [
+                        {"title": "MDN Equality", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the result of: 5 + '5' in JavaScript?",
+                    "options": ["10", "55", "Error", "undefined"],
+                    "correct": "55",
+                    "explanation": "JavaScript converts the number to string and concatenates them.",
+                    "resources": [
+                        {"title": "MDN Type Coercion", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Addition"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "Which of these is a falsy value in JavaScript?",
+                    "options": ["'hello'", "1", "0", "true"],
+                    "correct": "0",
+                    "explanation": "0 is one of the falsy values in JavaScript.",
+                    "resources": [
+                        {"title": "MDN Falsy", "url": "https://developer.mozilla.org/en-US/docs/Glossary/Falsy"},
+                    ],
+                },
+            ],
+        },
+        2: {
+            "title": "Control Flow",
+            "description": "If, else, switch, and loops",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which statement is used to skip the current iteration of a loop in JavaScript?",
+                    "options": ["break", "continue", "skip", "exit"],
+                    "correct": "continue",
+                    "explanation": "'continue' skips the current iteration of a loop.",
+                    "resources": [
+                        {"title": "MDN continue", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/continue"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which loop will always execute at least once?",
+                    "options": ["for", "while", "do...while", "foreach"],
+                    "correct": "do...while",
+                    "explanation": "'do...while' executes the block at least once before checking the condition.",
+                    "resources": [
+                        {"title": "MDN do...while", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/do...while"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: for(let i = 0; i < 3; i++) { console.log(i); }",
+                    "options": ["0,1,2", "1,2,3", "0,1,2,3", "1,2"],
+                    "correct": "0,1,2",
+                    "explanation": "The loop runs from 0 to 2 (less than 3).",
+                    "resources": [
+                        {"title": "MDN for", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which statement is used to exit a switch case in JavaScript?",
+                    "options": ["break", "continue", "return", "exit"],
+                    "correct": "break",
+                    "explanation": "break is used to exit a switch case.",
+                    "resources": [
+                        {"title": "MDN switch", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/switch"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the result of: if (0) { console.log('true'); } else { console.log('false'); }",
+                    "options": ["true", "false", "Error", "undefined"],
+                    "correct": "false",
+                    "explanation": "0 is falsy, so the else block executes.",
+                    "resources": [
+                        {"title": "MDN if...else", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/if...else"},
+                    ],
+                },
+            ],
+        },
+        3: {
+            "title": "Functions & ES6",
+            "description": "Functions, arrow functions, and ES6 features",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "How do you define an arrow function in JavaScript?",
+                    "options": [
+                        "function() => {}",
+                        "() => {}",
+                        "=> function() {}",
+                        "function => {}"
+                    ],
+                    "correct": "() => {}",
+                    "explanation": "Arrow functions use the syntax: () => {}",
+                    "resources": [
+                        {"title": "MDN Arrow Functions", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which ES6 feature allows you to declare a block-scoped variable?",
+                    "options": ["var", "let", "const", "both let and const"],
+                    "correct": "both let and const",
+                    "explanation": "'let' and 'const' are block-scoped in ES6.",
+                    "resources": [
+                        {"title": "MDN let", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/let"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: const add = (a, b) => a + b; console.log(add(2, 3));",
+                    "options": ["5", "23", "Error", "undefined"],
+                    "correct": "5",
+                    "explanation": "Arrow functions can have implicit return for single expressions.",
+                    "resources": [
+                        {"title": "MDN Arrow Functions", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which ES6 feature allows you to extract values from objects?",
+                    "options": ["Destructuring", "Spread", "Rest", "Template literals"],
+                    "correct": "Destructuring",
+                    "explanation": "Destructuring allows you to extract values from objects and arrays.",
+                    "resources": [
+                        {"title": "MDN Destructuring", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the result of: const name = 'John'; console.log(`Hello ${name}!`);",
+                    "options": ["Hello John!", "Hello ${name}!", "Error", "undefined"],
+                    "correct": "Hello John!",
+                    "explanation": "Template literals use backticks and ${} for variable interpolation.",
+                    "resources": [
+                        {"title": "MDN Template Literals", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals"},
+                    ],
+                },
+            ],
+        },
+        4: {
+            "title": "DOM & Events",
+            "description": "Document Object Model and event handling",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which method is used to select an element by its ID in JavaScript?",
+                    "options": ["getElementById", "querySelector", "getElementsByClassName", "getElementByTag"],
+                    "correct": "getElementById",
+                    "explanation": "getElementById is used to select an element by its ID.",
+                    "resources": [
+                        {"title": "MDN getElementById", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementById"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which event is triggered when a user clicks on an HTML element?",
+                    "options": ["onchange", "onmouseover", "onclick", "onload"],
+                    "correct": "onclick",
+                    "explanation": "The 'onclick' event is triggered when an element is clicked.",
+                    "resources": [
+                        {"title": "MDN onclick", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Element/click_event"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "How do you add an event listener in JavaScript?",
+                    "options": ["addEventListener", "onEvent", "attachEvent", "bindEvent"],
+                    "correct": "addEventListener",
+                    "explanation": "addEventListener is the modern way to add event handlers.",
+                    "resources": [
+                        {"title": "MDN addEventListener", "url": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which method is used to create a new HTML element?",
+                    "options": ["createElement", "newElement", "makeElement", "buildElement"],
+                    "correct": "createElement",
+                    "explanation": "createElement creates a new HTML element.",
+                    "resources": [
+                        {"title": "MDN createElement", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Document/createElement"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "How do you change the text content of an element?",
+                    "options": ["textContent", "innerHTML", "value", "content"],
+                    "correct": "textContent",
+                    "explanation": "textContent sets or returns the text content of an element.",
+                    "resources": [
+                        {"title": "MDN textContent", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent"},
+                    ],
+                },
+            ],
+        },
+        5: {
+            "title": "Arrays & Objects",
+            "description": "Working with arrays, objects, and methods",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which method adds an element to the end of an array?",
+                    "options": ["push", "pop", "shift", "unshift"],
+                    "correct": "push",
+                    "explanation": "push adds one or more elements to the end of an array.",
+                    "resources": [
+                        {"title": "MDN push", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/push"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "How do you access an object property in JavaScript?",
+                    "options": ["object.property", "object['property']", "Both A and B", "object->property"],
+                    "correct": "Both A and B",
+                    "explanation": "You can use dot notation or bracket notation to access object properties.",
+                    "resources": [
+                        {"title": "MDN Objects", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "Which method creates a new array with the results of calling a function for every array element?",
+                    "options": ["map", "filter", "reduce", "forEach"],
+                    "correct": "map",
+                    "explanation": "map creates a new array with the results of calling a function for every array element.",
+                    "resources": [
+                        {"title": "MDN map", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the output of: const arr = [1, 2, 3]; console.log(arr.length);",
+                    "options": ["3", "2", "4", "undefined"],
+                    "correct": "3",
+                    "explanation": "The length property returns the number of elements in an array.",
+                    "resources": [
+                        {"title": "MDN Array length", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/length"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "Which method removes the last element from an array?",
+                    "options": ["pop", "push", "shift", "unshift"],
+                    "correct": "pop",
+                    "explanation": "pop removes the last element from an array and returns it.",
+                    "resources": [
+                        {"title": "MDN pop", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/pop"},
+                    ],
+                },
+            ],
+        },
+        6: {
+            "title": "Advanced JavaScript",
+            "description": "Closures, promises, and modern patterns",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is a closure in JavaScript?",
+                    "options": ["A function that has access to variables in its outer scope", "A way to close a function", "A type of loop", "A method to end execution"],
+                    "correct": "A function that has access to variables in its outer scope",
+                    "explanation": "A closure is a function that has access to variables in its outer scope.",
+                    "resources": [
+                        {"title": "MDN Closures", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which method is used to handle asynchronous operations in modern JavaScript?",
+                    "options": ["async/await", "callbacks", "promises", "All of the above"],
+                    "correct": "All of the above",
+                    "explanation": "JavaScript supports callbacks, promises, and async/await for asynchronous operations.",
+                    "resources": [
+                        {"title": "MDN async/await", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: Promise.resolve(5).then(x => x * 2).then(console.log);",
+                    "options": ["5", "10", "Error", "undefined"],
+                    "correct": "10",
+                    "explanation": "The promise resolves to 5, then multiplies by 2, resulting in 10.",
+                    "resources": [
+                        {"title": "MDN Promise", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which keyword is used to declare an async function?",
+                    "options": ["async", "await", "function", "async function"],
+                    "correct": "async",
+                    "explanation": "The async keyword is used to declare an async function.",
+                    "resources": [
+                        {"title": "MDN async function", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the purpose of the 'this' keyword in JavaScript?",
+                    "options": ["Refers to the current object", "Creates a new object", "Ends a function", "Starts a loop"],
+                    "correct": "Refers to the current object",
+                    "explanation": "The 'this' keyword refers to the current object context.",
+                    "resources": [
+                        {"title": "MDN this", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/this"},
+                    ],
+                },
             ],
         },
     },
     4: {  # C Programming
         1: {
             "title": "C Basics",
-            "description": "Test your understanding of C programming fundamentals",
+            "description": "Variables, data types, and operators",
             "questions": [
                 {
                     "id": 1,
@@ -212,6 +546,316 @@ QUIZ_DATA = {
                     "explanation": "Multiplication has higher precedence, so 2*3=6, then 5+6=11.",
                     "resources": [
                         {"title": "C Operator Precedence", "url": "https://www.tutorialspoint.com/cprogramming/c_operators.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "Which data type is used to store a single character in C?",
+                    "options": ["char", "string", "character", "text"],
+                    "correct": "char",
+                    "explanation": "char is used to store a single character in C.",
+                    "resources": [
+                        {"title": "C Data Types", "url": "https://www.tutorialspoint.com/cprogramming/c_data_types.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the size of an int data type in C (typically)?",
+                    "options": ["2 bytes", "4 bytes", "8 bytes", "1 byte"],
+                    "correct": "4 bytes",
+                    "explanation": "An int is typically 4 bytes on most modern systems.",
+                    "resources": [
+                        {"title": "C Data Types", "url": "https://www.tutorialspoint.com/cprogramming/c_data_types.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "Which operator is used to get the address of a variable?",
+                    "options": ["&", "*", "#", "%"],
+                    "correct": "&",
+                    "explanation": "The & operator is used to get the address of a variable.",
+                    "resources": [
+                        {"title": "C Pointers", "url": "https://www.tutorialspoint.com/cprogramming/c_pointers.htm"},
+                    ],
+                },
+            ],
+        },
+        2: {
+            "title": "Control Flow",
+            "description": "If, else, switch, and loops in C",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which statement is used to exit a loop in C?",
+                    "options": ["break", "continue", "exit", "stop"],
+                    "correct": "break",
+                    "explanation": "'break' is used to exit a loop in C.",
+                    "resources": [
+                        {"title": "C break", "url": "https://www.tutorialspoint.com/cprogramming/c_break_statement.htm"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which loop will always execute at least once in C?",
+                    "options": ["for", "while", "do...while", "foreach"],
+                    "correct": "do...while",
+                    "explanation": "'do...while' executes the block at least once before checking the condition.",
+                    "resources": [
+                        {"title": "C do...while", "url": "https://www.tutorialspoint.com/cprogramming/c_do_while_loop.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: int i = 0; while(i < 3) { printf(\"%d \", i); i++; }",
+                    "options": ["0 1 2", "1 2 3", "0 1 2 3", "1 2"],
+                    "correct": "0 1 2",
+                    "explanation": "The while loop prints 0, 1, 2 and stops when i becomes 3.",
+                    "resources": [
+                        {"title": "C while loop", "url": "https://www.tutorialspoint.com/cprogramming/c_while_loop.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which statement is used to skip the current iteration in a loop?",
+                    "options": ["continue", "break", "skip", "next"],
+                    "correct": "continue",
+                    "explanation": "continue skips the current iteration and continues with the next one.",
+                    "resources": [
+                        {"title": "C continue", "url": "https://www.tutorialspoint.com/cprogramming/c_continue_statement.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the result of: if (5 > 3) printf(\"true\"); else printf(\"false\");",
+                    "options": ["true", "false", "Error", "Nothing"],
+                    "correct": "true",
+                    "explanation": "5 is greater than 3, so the if condition is true.",
+                    "resources": [
+                        {"title": "C if...else", "url": "https://www.tutorialspoint.com/cprogramming/c_if_else_statement.htm"},
+                    ],
+                },
+            ],
+        },
+        3: {
+            "title": "Functions",
+            "description": "Functions, parameters, and return values",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which keyword is used to define a function in C?",
+                    "options": ["function", "def", "void", "int"],
+                    "correct": "void",
+                    "explanation": "Functions in C are defined with a return type, such as 'void' or 'int'.",
+                    "resources": [
+                        {"title": "C Functions", "url": "https://www.tutorialspoint.com/cprogramming/c_functions.htm"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "How do you return a value from a function in C?",
+                    "options": ["return value;", "output value;", "send value;", "give value;"],
+                    "correct": "return value;",
+                    "explanation": "The 'return' statement is used to return a value from a function.",
+                    "resources": [
+                        {"title": "C return", "url": "https://www.tutorialspoint.com/cprogramming/c_functions.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: int add(int a, int b) { return a + b; } printf(\"%d\", add(3, 4));",
+                    "options": ["7", "34", "Error", "Nothing"],
+                    "correct": "7",
+                    "explanation": "The function adds 3 and 4, returning 7.",
+                    "resources": [
+                        {"title": "C Functions", "url": "https://www.tutorialspoint.com/cprogramming/c_functions.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which type of parameter passing copies the value in C?",
+                    "options": ["Pass by value", "Pass by reference", "Pass by pointer", "Pass by address"],
+                    "correct": "Pass by value",
+                    "explanation": "By default, C uses pass by value, which copies the parameter value.",
+                    "resources": [
+                        {"title": "C Function Parameters", "url": "https://www.tutorialspoint.com/cprogramming/c_functions.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is a function prototype in C?",
+                    "options": ["A function declaration without body", "A function definition", "A function call", "A function pointer"],
+                    "correct": "A function declaration without body",
+                    "explanation": "A function prototype declares the function signature without the body.",
+                    "resources": [
+                        {"title": "C Function Prototypes", "url": "https://www.tutorialspoint.com/cprogramming/c_functions.htm"},
+                    ],
+                },
+            ],
+        },
+        4: {
+            "title": "Pointers & Arrays",
+            "description": "Pointers, arrays, and memory management",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which symbol is used to declare a pointer in C?",
+                    "options": ["&", "*", "#", "%"],
+                    "correct": "*",
+                    "explanation": "The asterisk (*) is used to declare a pointer.",
+                    "resources": [
+                        {"title": "C Pointers", "url": "https://www.tutorialspoint.com/cprogramming/c_pointers.htm"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "How do you access the third element of an array 'arr' in C?",
+                    "options": ["arr[2]", "arr(3)", "arr[3]", "arr{2}"],
+                    "correct": "arr[2]",
+                    "explanation": "Arrays in C are zero-indexed, so arr[2] is the third element.",
+                    "resources": [
+                        {"title": "C Arrays", "url": "https://www.tutorialspoint.com/cprogramming/c_arrays.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: int arr[] = {1, 2, 3}; printf(\"%d\", arr[1]);",
+                    "options": ["1", "2", "3", "Error"],
+                    "correct": "2",
+                    "explanation": "arr[1] accesses the second element (index 1) which is 2.",
+                    "resources": [
+                        {"title": "C Arrays", "url": "https://www.tutorialspoint.com/cprogramming/c_arrays.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which function is used to allocate memory dynamically in C?",
+                    "options": ["malloc", "alloc", "new", "create"],
+                    "correct": "malloc",
+                    "explanation": "malloc is used to allocate memory dynamically in C.",
+                    "resources": [
+                        {"title": "C malloc", "url": "https://www.tutorialspoint.com/cprogramming/c_memory_management.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the output of: int *ptr = NULL; printf(\"%p\", ptr);",
+                    "options": ["0x0", "NULL", "0", "Error"],
+                    "correct": "0x0",
+                    "explanation": "NULL pointer typically prints as 0x0 or (nil).",
+                    "resources": [
+                        {"title": "C NULL Pointer", "url": "https://www.tutorialspoint.com/cprogramming/c_null_pointers.htm"},
+                    ],
+                },
+            ],
+        },
+        5: {
+            "title": "Strings & Structures",
+            "description": "String manipulation and structs",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which function is used to find the length of a string in C?",
+                    "options": ["strlen", "length", "size", "count"],
+                    "correct": "strlen",
+                    "explanation": "strlen is used to find the length of a string.",
+                    "resources": [
+                        {"title": "C strlen", "url": "https://www.tutorialspoint.com/cprogramming/c_strings.htm"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "How do you declare a structure in C?",
+                    "options": ["struct", "structure", "class", "object"],
+                    "correct": "struct",
+                    "explanation": "The 'struct' keyword is used to declare a structure in C.",
+                    "resources": [
+                        {"title": "C Structures", "url": "https://www.tutorialspoint.com/cprogramming/c_structures.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "Which function is used to copy one string to another?",
+                    "options": ["strcpy", "copy", "assign", "move"],
+                    "correct": "strcpy",
+                    "explanation": "strcpy is used to copy one string to another.",
+                    "resources": [
+                        {"title": "C strcpy", "url": "https://www.tutorialspoint.com/cprogramming/c_strings.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the output of: char str[] = \"Hello\"; printf(\"%d\", strlen(str));",
+                    "options": ["5", "6", "4", "Error"],
+                    "correct": "5",
+                    "explanation": "strlen returns the length of the string excluding the null terminator.",
+                    "resources": [
+                        {"title": "C strlen", "url": "https://www.tutorialspoint.com/cprogramming/c_strings.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "How do you access a member of a structure?",
+                    "options": ["structure.member", "structure->member", "Both A and B", "structure[member]"],
+                    "correct": "Both A and B",
+                    "explanation": "You can use dot (.) for structure variables and arrow (->) for structure pointers.",
+                    "resources": [
+                        {"title": "C Structures", "url": "https://www.tutorialspoint.com/cprogramming/c_structures.htm"},
+                    ],
+                },
+            ],
+        },
+        6: {
+            "title": "File I/O & Advanced",
+            "description": "File operations and advanced concepts",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "Which function is used to open a file in C?",
+                    "options": ["fopen", "open", "file", "create"],
+                    "correct": "fopen",
+                    "explanation": "fopen is used to open a file in C.",
+                    "resources": [
+                        {"title": "C File I/O", "url": "https://www.tutorialspoint.com/cprogramming/c_file_io.htm"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which mode opens a file for reading in C?",
+                    "options": ["r", "w", "a", "x"],
+                    "correct": "r",
+                    "explanation": "'r' mode opens a file for reading.",
+                    "resources": [
+                        {"title": "C File Modes", "url": "https://www.tutorialspoint.com/cprogramming/c_file_io.htm"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "Which function is used to read a character from a file?",
+                    "options": ["fgetc", "getc", "read", "scanf"],
+                    "correct": "fgetc",
+                    "explanation": "fgetc is used to read a character from a file.",
+                    "resources": [
+                        {"title": "C fgetc", "url": "https://www.tutorialspoint.com/cprogramming/c_file_io.htm"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What does #include do in C?",
+                    "options": ["Includes a header file", "Defines a macro", "Creates a function", "Declares a variable"],
+                    "correct": "Includes a header file",
+                    "explanation": "#include is a preprocessor directive that includes header files.",
+                    "resources": [
+                        {"title": "C Preprocessor", "url": "https://www.tutorialspoint.com/cprogramming/c_preprocessors.htm"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "Which function is used to close a file in C?",
+                    "options": ["fclose", "close", "end", "finish"],
+                    "correct": "fclose",
+                    "explanation": "fclose is used to close a file in C.",
+                    "resources": [
+                        {"title": "C fclose", "url": "https://www.tutorialspoint.com/cprogramming/c_file_io.htm"},
                     ],
                 },
             ],
@@ -371,6 +1015,40 @@ SUBJECTS = [
             {"id": 4, "name": "Deep Learning Basics", "description": "Introduction to neural networks and deep learning", "quizzes": 10, "estimatedTime": "5 hours", "topics": ["Neural Networks", "Backpropagation", "CNN", "RNN", "Transfer Learning"]},
         ],
     },
+    {
+        "id": 3,
+        "name": "JavaScript",
+        "description": "Learn JavaScript concepts and modern ES6+ features",
+        "icon": "⚡",
+        "color": "bg-yellow-500",
+        "totalLevels": 6,
+        "totalQuizzes": 30,
+        "levels": [
+            {"id": 1, "name": "JavaScript Basics", "description": "Variables, types, and operators", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Variables", "Types", "Operators"]},
+            {"id": 2, "name": "Control Flow", "description": "If, else, switch, and loops", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["If", "Else", "Switch", "Loops"]},
+            {"id": 3, "name": "Functions & ES6", "description": "Functions, arrow functions, and ES6 features", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Functions", "Arrow Functions", "ES6"]},
+            {"id": 4, "name": "DOM & Events", "description": "Document Object Model and event handling", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["DOM", "Events", "Selectors"]},
+            {"id": 5, "name": "Arrays & Objects", "description": "Working with arrays, objects, and methods", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Arrays", "Objects", "Methods"]},
+            {"id": 6, "name": "Advanced JavaScript", "description": "Closures, promises, and modern patterns", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Closures", "Promises", "Async/Await"]},
+        ],
+    },
+    {
+        "id": 4,
+        "name": "C Programming",
+        "description": "Build strong foundations in C programming language",
+        "icon": "⚙️",
+        "color": "bg-green-500",
+        "totalLevels": 6,
+        "totalQuizzes": 30,
+        "levels": [
+            {"id": 1, "name": "C Basics", "description": "Variables, data types, and operators", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Variables", "Data Types", "Operators"]},
+            {"id": 2, "name": "Control Flow", "description": "If, else, switch, and loops in C", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["If", "Else", "Switch", "Loops"]},
+            {"id": 3, "name": "Functions", "description": "Functions, parameters, and return values", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Functions", "Parameters", "Return Values"]},
+            {"id": 4, "name": "Pointers & Arrays", "description": "Pointers, arrays, and memory management", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Pointers", "Arrays", "Memory"]},
+            {"id": 5, "name": "Strings & Structures", "description": "String manipulation and structs", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["Strings", "Structs", "Unions"]},
+            {"id": 6, "name": "File I/O & Advanced", "description": "File operations and advanced concepts", "quizzes": 5, "estimatedTime": "1 hour", "topics": ["File I/O", "Preprocessor", "Headers"]},
+        ],
+    },
 ]
 
 # --- Dashboard Data ---
@@ -410,6 +1088,85 @@ def get_db():
     finally:
         db.close()
 
+# --- Admin Authentication Helper ---
+def get_current_admin_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = get_user(db, email)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+# --- Create Admin User on Startup ---
+def create_admin_user():
+    db = SessionLocal()
+    try:
+        # Check if admin user exists
+        admin_user = db.query(User).filter(User.email == "AdminIbra@gmail.com").first()
+        if not admin_user:
+            # Create admin user
+            hashed_password = get_password_hash("IbraGold@1")
+            admin_user = User(
+                email="AdminIbra@gmail.com",
+                hashed_password=hashed_password,
+                name="IbraGold",
+                role="admin"
+            )
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
+            print("Admin user created successfully!")
+            # Initialize admin progress
+            initialize_user_progress(db, admin_user.id)
+            initialize_user_quiz_progress(db, admin_user.id)
+        else:
+            print("Admin user already exists!")
+    except Exception as e:
+        print(f"Error creating admin user: {e}")
+    finally:
+        db.close()
+
+# Create admin user on startup
+create_admin_user()
+
+# --- Create Demo Users for Testing ---
+def create_demo_users():
+    db = SessionLocal()
+    try:
+        # Create demo student user
+        demo_user = db.query(User).filter(User.email == "student@alu.edu").first()
+        if not demo_user:
+            hashed_password = get_password_hash("password123")
+            demo_user = User(
+                email="student@alu.edu",
+                hashed_password=hashed_password,
+                name="Demo Student",
+                role="user"
+            )
+            db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+            print("Demo student user created successfully!")
+            # Initialize demo user progress
+            initialize_user_progress(db, demo_user.id)
+            initialize_user_quiz_progress(db, demo_user.id)
+        else:
+            print("Demo student user already exists!")
+    except Exception as e:
+        print(f"Error creating demo user: {e}")
+    finally:
+        db.close()
+
+# Create demo users on startup
+create_demo_users()
+
 # --- Endpoints ---
 @app.post("/signup", response_model=UserOut)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
@@ -417,7 +1174,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = get_password_hash(user.password)
-    new_user = User(email=user.email, hashed_password=hashed_password)
+    new_user = User(email=user.email, hashed_password=hashed_password, name=user.name, role=user.role)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -672,7 +1429,7 @@ def get_user_activity(token: str = Depends(oauth2_scheme), db: Session = Depends
 
 # --- Admin: Add Subject ---
 @app.post("/admin/add-subject")
-def add_subject(subject: dict, request: Request):
+def add_subject(subject: dict, admin_user: User = Depends(get_current_admin_user)):
     # In production, validate and save to DB
     subject["id"] = max(s["id"] for s in SUBJECTS) + 1 if SUBJECTS else 1
     SUBJECTS.append(subject)
@@ -680,7 +1437,7 @@ def add_subject(subject: dict, request: Request):
 
 # --- Admin: Add Level/Question to Subject ---
 @app.post("/admin/add-level")
-def add_level(data: dict, request: Request):
+def add_level(data: dict, admin_user: User = Depends(get_current_admin_user)):
     subject_id = data.get("subject_id")
     level = data.get("level")
     subject = next((s for s in SUBJECTS if s["id"] == subject_id), None)
@@ -750,11 +1507,87 @@ def update_user_progress(db, user_id, subject_id):
         db.commit()
 
 @app.post("/admin/initialize-quiz-progress")
-def admin_initialize_quiz_progress(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    email: str = payload.get("sub")
-    user = get_user(db, email)
+def admin_initialize_quiz_progress(admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    initialize_user_quiz_progress(db, admin_user.id)
+    return {"status": "initialized"}
+
+@app.get("/admin/users", response_model=List[UserWithProgress])
+def get_all_users(admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    result = []
+    for user in users:
+        # Get user progress
+        quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
+        total_completed = sum(1 for qp in quiz_progress_list if qp.completed == 1)
+        
+        # Get average score
+        activities = db.query(UserActivity).filter_by(user_id=user.id).all()
+        scores = [a.score for a in activities if a.score is not None]
+        avg_score = float(sum(scores) / len(scores)) if scores else 0.0
+        
+        # Get last activity
+        last_activity = db.query(UserActivity).filter_by(user_id=user.id).order_by(UserActivity.timestamp.desc()).first()
+        last_activity_time = last_activity.timestamp if last_activity else ""
+        
+        result.append(UserWithProgress(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            total_completed=total_completed,
+            avg_score=avg_score,
+            last_activity=last_activity_time
+        ))
+    return result
+
+@app.get("/admin/user/{user_id}/progress")
+def get_user_progress(user_id: int, admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    initialize_user_quiz_progress(db, user.id)
-    return {"status": "initialized"} 
+    
+    # Get all progress for this user
+    quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
+    activities = db.query(UserActivity).filter_by(user_id=user.id).order_by(UserActivity.timestamp.desc()).all()
+    
+    # Group by subject
+    subject_progress = {}
+    for qp in quiz_progress_list:
+        if qp.subject_id not in subject_progress:
+            subject_progress[qp.subject_id] = {"completed": 0, "total": 0}
+        if qp.completed == 1:
+            subject_progress[qp.subject_id]["completed"] += 1
+        subject_progress[qp.subject_id]["total"] += 1
+    
+    # Get subject names
+    subject_names = {s["id"]: s["name"] for s in SUBJECTS}
+    
+    result = {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role
+        },
+        "subjects": [
+            {
+                "id": subject_id,
+                "name": subject_names.get(subject_id, f"Subject {subject_id}"),
+                "completed": progress["completed"],
+                "total": progress["total"],
+                "percentage": int((progress["completed"] / progress["total"]) * 100) if progress["total"] > 0 else 0
+            }
+            for subject_id, progress in subject_progress.items()
+        ],
+        "recent_activities": [
+            {
+                "action": act.action,
+                "timestamp": act.timestamp,
+                "score": act.score,
+                "subject_id": act.subject_id,
+                "level_id": act.level_id
+            }
+            for act in activities[:10]  # Last 10 activities
+        ]
+    }
+    return result 

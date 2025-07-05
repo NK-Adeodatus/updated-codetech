@@ -124,8 +124,8 @@ export default function LoginPage() {
 
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-700 font-medium mb-2">Demo Credentials:</p>
-              <p className="text-xs text-blue-600">Email: student@alu.edu</p>
-              <p className="text-xs text-blue-600">Password: password123</p>
+              <p className="text-xs text-blue-600">Student: student@alu.edu / password123</p>
+              <p className="text-xs text-blue-600">Admin: AdminIbra@gmail.com / IbraGold@1</p>
             </div>
           </CardContent>
         </Card>

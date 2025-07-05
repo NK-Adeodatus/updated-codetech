@@ -114,4 +114,41 @@ export async function getUserStats(token: string) {
     });
     if (!res.ok) throw new Error("Failed to fetch user stats");
     return res.json();
+}
+
+// Admin API functions
+export async function getAllUsers(token: string) {
+    const res = await fetch(`${API_URL}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch users");
+    return res.json();
+}
+
+export async function getUserProgress(userId: number, token: string) {
+    const res = await fetch(`${API_URL}/admin/user/${userId}/progress`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch user progress");
+    return res.json();
+}
+
+export async function addSubject(subject: any, token: string) {
+    const res = await fetch(`${API_URL}/admin/add-subject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(subject),
+    });
+    if (!res.ok) throw new Error("Failed to add subject");
+    return res.json();
+}
+
+export async function addLevel(data: any, token: string) {
+    const res = await fetch(`${API_URL}/admin/add-level`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to add level");
+    return res.json();
 } 

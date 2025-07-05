@@ -118,6 +118,11 @@ export default function DashboardPage() {
               <Link href="/leaderboard">
                 <Button variant="ghost">Leaderboard</Button>
               </Link>
+              {user?.role === "admin" && (
+                <Link href="/admin">
+                  <Button variant="ghost">Admin Panel</Button>
+                </Link>
+              )}
               <div className="flex items-center space-x-3">
                 <Avatar>
                   <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
