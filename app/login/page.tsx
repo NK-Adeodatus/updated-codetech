@@ -1,38 +1,61 @@
+// =============================================================================
+// LOGIN PAGE COMPONENT
+// =============================================================================
+// This page allows existing users to authenticate and access their account.
+// Includes form validation, password visibility toggle, and error handling.
+
 "use client"
 
+// Import React types for TypeScript
 import type React from "react"
 
+// Import React hooks for state management
 import { useState } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+// Import icons from Lucide React
 import { Code, Eye, EyeOff, ArrowLeft } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+// Import API function for user authentication
 import { login } from "@/lib/api"
 
 export default function LoginPage() {
+  // Form input state management
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  // State to toggle password visibility for better UX
   const [showPassword, setShowPassword] = useState(false)
+  // Error message state for form validation
   const [error, setError] = useState("")
+  // Loading state during form submission
   const [isLoading, setIsLoading] = useState(false)
+  // Next.js router for navigation after successful login
   const router = useRouter()
 
+  // Handle form submission for user authentication
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
+    e.preventDefault() // Prevent default form submission
+    setIsLoading(true) // Show loading state
+    setError("") // Clear any previous errors
 
     try {
+      // Attempt to authenticate user with provided credentials
       const data = await login({ email, password })
+      // Store the JWT token in localStorage for future requests
       localStorage.setItem("authToken", data.access_token)
+      // Redirect to dashboard after successful login
       router.push("/dashboard")
     } catch (err: any) {
+      // Display error message if authentication fails
       setError(err.message || "Login failed")
     } finally {
+      // Always hide loading state regardless of success/failure
       setIsLoading(false)
     }
   }
@@ -74,7 +97,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="student@alu.edu"
+                  placeholder="Your Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -120,12 +143,6 @@ export default function LoginPage() {
                   Sign up here
                 </Link>
               </p>
-            </div>
-
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-700 font-medium mb-2">Demo Credentials:</p>
-              <p className="text-xs text-blue-600">Student: student@alu.edu / password123</p>
-              <p className="text-xs text-blue-600">Admin: AdminIbra@gmail.com / IbraGold@1</p>
             </div>
           </CardContent>
         </Card>

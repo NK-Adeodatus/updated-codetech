@@ -1,29 +1,47 @@
+// =============================================================================
+// HOMEPAGE COMPONENT - MAIN LANDING PAGE
+// =============================================================================
+// This is the main landing page that users see when they visit the application.
+// It displays different content for logged-in users vs guests.
+
 "use client"
 
+// Import React hooks for state management and side effects
 import { useState, useEffect } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+// Import icons from Lucide React
 import { BookOpen, Trophy, Users, TrendingUp, ArrowRight, Star, Code, Brain, Zap } from "lucide-react"
+// Import Next.js routing component
 import Link from "next/link"
+// Import API function to get user's subjects
 import { getUserSubjects } from "@/lib/api"
 
 export default function HomePage() {
+  // State management for user authentication status
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  // State for storing user's subjects and progress data
   const [subjects, setSubjects] = useState<any[]>([])
+  // Loading state for API calls
   const [loading, setLoading] = useState(true)
 
+  // Effect hook that runs on component mount to check authentication and load data
   useEffect(() => {
+    // Check if user is logged in by looking for auth token in localStorage
     const token = localStorage.getItem("authToken")
     setIsLoggedIn(!!token)
+
     if (token) {
+      // If logged in, fetch user's subjects with progress from API
       getUserSubjects(token)
         .then((userSubjects) => setSubjects(userSubjects))
         .catch(() => setSubjects([]))
         .finally(() => setLoading(false))
     } else {
-      // Guest: show all subjects with 0% progress
+      // If not logged in (guest), show all subjects with 0% progress for preview
       setSubjects([
         {
           id: 1,
@@ -70,6 +88,7 @@ export default function HomePage() {
     }
   }, [])
 
+  // Static statistics data for the homepage stats section
   const stats = [
     { label: "Active Students", value: "1,247", icon: Users, color: "text-blue-600" },
     { label: "Quizzes Completed", value: "15,432", icon: BookOpen, color: "text-green-600" },

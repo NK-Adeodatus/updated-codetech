@@ -1,3 +1,10 @@
+# =============================================================================
+# BACKEND MAIN APPLICATION - FASTAPI SERVER
+# =============================================================================
+# This file contains the main FastAPI application with all endpoints, database models,
+# authentication, quiz data, and business logic for the CodeTech learning platform.
+
+# Import required libraries for FastAPI web framework
 from fastapi import FastAPI, HTTPException, Depends, status, Body, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -12,104 +19,138 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 
-# --- Config ---
-SECRET_KEY = "your-secret-key-change-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+# JWT token configuration for user authentication
+SECRET_KEY = "your-secret-key-change-in-production"  # Change this in production for security
+ALGORITHM = "HS256"  # JWT signing algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expiration time
 
-# --- DB Setup ---
-DATABASE_URL = "sqlite:///./users.db"
-Base = declarative_base()
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# =============================================================================
+# DATABASE SETUP
+# =============================================================================
+# SQLite database configuration and connection setup
+DATABASE_URL = "sqlite:///./users.db"  # Local SQLite database file
+Base = declarative_base()  # SQLAlchemy base class for models
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})  # Database engine
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)  # Database session factory
+
+# =============================================================================
+# DATABASE MODELS (SQLAlchemy ORM)
+# =============================================================================
+# These models define the database structure and relationships
 
 class User(Base):
+    """User model - stores user account information"""
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    name = Column(String, default="")
-    role = Column(String, default="user")
+    id = Column(Integer, primary_key=True, index=True)  # Unique user ID
+    email = Column(String, unique=True, index=True)  # User's email (unique)
+    hashed_password = Column(String)  # Encrypted password
+    name = Column(String, default="")  # User's display name
+    role = Column(String, default="user")  # User role: "user" or "admin"
 
 class UserProgress(Base):
+    """User progress model - tracks overall progress per subject"""
     __tablename__ = "user_progress"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    subject_id = Column(Integer)
-    progress = Column(Integer, default=0)  # percent
-    completed_quizzes = Column(Integer, default=0)
-    total_quizzes = Column(Integer, default=0)
+    id = Column(Integer, primary_key=True, index=True)  # Unique progress record ID
+    user_id = Column(Integer, ForeignKey("users.id"))  # Links to User table
+    subject_id = Column(Integer)  # Subject ID (1=Python, 2=ML, 3=JS, 4=C)
+    progress = Column(Integer, default=0)  # Progress percentage (0-100)
+    completed_quizzes = Column(Integer, default=0)  # Number of completed quizzes
+    total_quizzes = Column(Integer, default=0)  # Total quizzes in subject
 
-    user = relationship("User")
+    user = relationship("User")  # SQLAlchemy relationship to User
 
 class UserQuizProgress(Base):
+    """Quiz progress model - tracks completion status of individual quiz levels"""
     __tablename__ = "user_quiz_progress"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    subject_id = Column(Integer)
-    level_id = Column(Integer)
+    id = Column(Integer, primary_key=True, index=True)  # Unique quiz progress ID
+    user_id = Column(Integer, ForeignKey("users.id"))  # Links to User table
+    subject_id = Column(Integer)  # Subject ID
+    level_id = Column(Integer)  # Level ID within subject
     completed = Column(Integer, default=0)  # 0 = not started, 1 = completed
-    user = relationship("User")
+    user = relationship("User")  # SQLAlchemy relationship to User
 
 class UserActivity(Base):
+    """User activity model - logs user actions and quiz scores"""
     __tablename__ = "user_activity"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    subject_id = Column(Integer)
-    level_id = Column(Integer)
-    action = Column(String)
-    timestamp = Column(String)
-    score = Column(Integer, default=None)
-    user = relationship("User")
+    id = Column(Integer, primary_key=True, index=True)  # Unique activity ID
+    user_id = Column(Integer, ForeignKey("users.id"))  # Links to User table
+    subject_id = Column(Integer)  # Subject ID
+    level_id = Column(Integer)  # Level ID
+    action = Column(String)  # Description of the action (e.g., "Completed Quiz")
+    timestamp = Column(String)  # When the action occurred
+    score = Column(Integer, default=None)  # Quiz score (if applicable)
+    user = relationship("User")  # SQLAlchemy relationship to User
 
+# Create all database tables based on the models defined above
 Base.metadata.create_all(bind=engine)
 
-# --- Auth ---
+# =============================================================================
+# AUTHENTICATION UTILITIES
+# =============================================================================
+# Password hashing and JWT token management functions
+
+# Password hashing context using bcrypt algorithm
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password):
+    """Hash a plain text password using bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password, hashed_password):
+    """Verify a plain text password against its hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict):
+    """Create a JWT access token for user authentication"""
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_user(db: Session, email: str):
+    """Get a user from database by email address"""
     return db.query(User).filter(User.email == email).first()
 
 
 
-# --- Schemas ---
+# =============================================================================
+# PYDANTIC SCHEMAS (API REQUEST/RESPONSE MODELS)
+# =============================================================================
+# These schemas define the structure of API requests and responses
+# They provide automatic validation and serialization
+
 class UserCreate(BaseModel):
-    email: str
-    password: str
-    name: str = ""
-    role: str = "user"
+    """Schema for user registration requests"""
+    email: str  # User's email address
+    password: str  # Plain text password (will be hashed)
+    name: str = ""  # User's display name (optional)
+    role: str = "user"  # User role (defaults to "user")
 
 class Token(BaseModel):
-    access_token: str
-    token_type: str
+    """Schema for authentication token responses"""
+    access_token: str  # JWT token for authentication
+    token_type: str  # Token type (usually "bearer")
 
 class UserOut(BaseModel):
-    id: int
-    email: str
-    name: str = ""
-    role: str = "user"
+    """Schema for user data responses (without sensitive info)"""
+    id: int  # User ID
+    email: str  # User's email
+    name: str = ""  # User's display name
+    role: str = "user"  # User role
     class Config:
-        from_attributes = True
+        from_attributes = True  # Allow creation from SQLAlchemy model
 
 class UserWithProgress(BaseModel):
-    id: int
-    email: str
-    name: str = ""
-    role: str = "user"
-    total_completed: int = 0
-    avg_score: float = 0.0
-    last_activity: str = ""
+    """Schema for user data with progress statistics"""
+    id: int  # User ID
+    email: str  # User's email
+    name: str = ""  # User's display name
+    role: str = "user"  # User role
+    total_completed: int = 0  # Total quizzes completed
+    avg_score: float = 0.0  # Average quiz score
+    last_activity: str = ""  # Last activity timestamp
     class Config:
-        from_attributes = True
+        from_attributes = True  # Allow creation from SQLAlchemy model
 
 # --- Sample Quiz Data (move to DB in production) ---
 QUIZ_DATA = {
@@ -137,6 +178,260 @@ QUIZ_DATA = {
                     "explanation": "In Python, decimal numbers are represented as float data type.",
                     "resources": [
                         {"title": "Python Numeric Types", "url": "https://docs.python.org/3/library/stdtypes.html#numeric-types-int-float-complex"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "Which of the following is a valid way to create a string in Python?",
+                    "options": ["str = 'Hello'", "str = \"Hello\"", "str = '''Hello'''", "All of the above"],
+                    "correct": "All of the above",
+                    "explanation": "Python supports single quotes, double quotes, and triple quotes for strings.",
+                    "resources": [
+                        {"title": "Python Strings", "url": "https://docs.python.org/3/tutorial/introduction.html#strings"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the output of: print(type([]))",
+                    "options": ["<class 'list'>", "<class 'array'>", "<class 'tuple'>", "<class 'set'>"],
+                    "correct": "<class 'list'>",
+                    "explanation": "Empty square brackets create a list in Python.",
+                    "resources": [
+                        {"title": "Python Lists", "url": "https://docs.python.org/3/tutorial/datastructures.html#more-on-lists"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "Which of the following is a boolean value in Python?",
+                    "options": ["True", "true", "TRUE", "1"],
+                    "correct": "True",
+                    "explanation": "Python boolean values are True and False (case-sensitive).",
+                    "resources": [
+                        {"title": "Python Booleans", "url": "https://docs.python.org/3/library/stdtypes.html#boolean-values"},
+                    ],
+                },
+            ],
+        },
+        2: {
+            "title": "Python Control Structures",
+            "description": "Test your understanding of Python control flow and loops",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the output of: for i in range(3): print(i)",
+                    "options": ["0,1,2", "1,2,3", "0,1,2,3", "1,2"],
+                    "correct": "0,1,2",
+                    "explanation": "range(3) generates numbers from 0 to 2 (exclusive of 3).",
+                    "resources": [
+                        {"title": "Python for Loops", "url": "https://docs.python.org/3/tutorial/controlflow.html#for-statements"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which statement is used to skip the current iteration in a Python loop?",
+                    "options": ["break", "continue", "pass", "skip"],
+                    "correct": "continue",
+                    "explanation": "continue skips the current iteration and continues with the next one.",
+                    "resources": [
+                        {"title": "Python break and continue", "url": "https://docs.python.org/3/tutorial/controlflow.html#break-and-continue-statements"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the result of: x = 5; print('Even' if x % 2 == 0 else 'Odd')",
+                    "options": ["Even", "Odd", "Error", "None"],
+                    "correct": "Odd",
+                    "explanation": "This is a ternary operator. Since 5 % 2 == 1 (not 0), it prints 'Odd'.",
+                    "resources": [
+                        {"title": "Python Conditional Expressions", "url": "https://docs.python.org/3/reference/expressions.html#conditional-expressions"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "Which loop will always execute at least once?",
+                    "options": ["for", "while", "do...while", "None of the above"],
+                    "correct": "None of the above",
+                    "explanation": "Python doesn't have a do...while loop. Both for and while may not execute if the condition is false initially.",
+                    "resources": [
+                        {"title": "Python Loops", "url": "https://docs.python.org/3/tutorial/controlflow.html#for-statements"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the output of: i = 0; while i < 3: print(i); i += 1",
+                    "options": ["0,1,2", "1,2,3", "0,1,2,3", "Infinite loop"],
+                    "correct": "0,1,2",
+                    "explanation": "The while loop prints 0, 1, 2 and stops when i becomes 3.",
+                    "resources": [
+                        {"title": "Python while Loops", "url": "https://docs.python.org/3/reference/compound_stmts.html#while"},
+                    ],
+                },
+            ],
+        },
+        3: {
+            "title": "Python Functions & Modules",
+            "description": "Test your understanding of Python functions and module system",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the output of: def func(x, y=10): return x + y; print(func(5))",
+                    "options": ["15", "5", "Error", "None"],
+                    "correct": "15",
+                    "explanation": "y has a default value of 10, so func(5) returns 5 + 10 = 15.",
+                    "resources": [
+                        {"title": "Python Functions", "url": "https://docs.python.org/3/tutorial/controlflow.html#defining-functions"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which keyword is used to import a specific function from a module?",
+                    "options": ["import", "from", "include", "require"],
+                    "correct": "from",
+                    "explanation": "from keyword is used to import specific items from a module.",
+                    "resources": [
+                        {"title": "Python Import System", "url": "https://docs.python.org/3/reference/import.html"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the output of: def func(): return 1, 2; x, y = func(); print(x)",
+                    "options": ["1", "2", "(1, 2)", "Error"],
+                    "correct": "1",
+                    "explanation": "The function returns a tuple (1, 2), which is unpacked into x and y.",
+                    "resources": [
+                        {"title": "Python Multiple Return Values", "url": "https://docs.python.org/3/tutorial/controlflow.html#defining-functions"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the purpose of __init__.py file in a Python package?",
+                    "options": ["It's required to make a directory a package", "It contains package initialization code", "Both A and B", "It's optional"],
+                    "correct": "Both A and B",
+                    "explanation": "__init__.py marks a directory as a Python package and can contain initialization code.",
+                    "resources": [
+                        {"title": "Python Packages", "url": "https://docs.python.org/3/tutorial/modules.html#packages"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the output of: lambda x: x * 2 (5)",
+                    "options": ["10", "5", "Error", "None"],
+                    "correct": "10",
+                    "explanation": "This is a lambda function that doubles its input. lambda x: x * 2 (5) calls the function with 5.",
+                    "resources": [
+                        {"title": "Python Lambda Functions", "url": "https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions"},
+                    ],
+                },
+            ],
+        },
+        4: {
+            "title": "Python Object-Oriented Programming",
+            "description": "Test your understanding of Python OOP concepts",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the output of: class MyClass: pass; obj = MyClass(); print(type(obj))",
+                    "options": ["<class 'MyClass'>", "<class 'object'>", "<class 'type'>", "Error"],
+                    "correct": "<class 'MyClass'>",
+                    "explanation": "obj is an instance of MyClass, so type(obj) returns the class type.",
+                    "resources": [
+                        {"title": "Python Classes", "url": "https://docs.python.org/3/tutorial/classes.html"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "Which method is called when an object is created?",
+                    "options": ["__init__", "__new__", "__create__", "__construct__"],
+                    "correct": "__init__",
+                    "explanation": "__init__ is the constructor method that is called when an object is instantiated.",
+                    "resources": [
+                        {"title": "Python __init__ Method", "url": "https://docs.python.org/3/reference/datamodel.html#object.__init__"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is inheritance in Python?",
+                    "options": ["A class can inherit from multiple parent classes", "A class can inherit from one parent class", "Both A and B", "Neither A nor B"],
+                    "correct": "Both A and B",
+                    "explanation": "Python supports both single and multiple inheritance.",
+                    "resources": [
+                        {"title": "Python Inheritance", "url": "https://docs.python.org/3/tutorial/classes.html#inheritance"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the output of: class Parent: def method(self): return 'Parent'; class Child(Parent): pass; c = Child(); print(c.method())",
+                    "options": ["Parent", "Error", "None", "Child"],
+                    "correct": "Parent",
+                    "explanation": "Child inherits the method from Parent, so c.method() returns 'Parent'.",
+                    "resources": [
+                        {"title": "Python Method Inheritance", "url": "https://docs.python.org/3/tutorial/classes.html#inheritance"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is encapsulation in OOP?",
+                    "options": ["Bundling data and methods that operate on that data", "Hiding implementation details", "Both A and B", "Creating multiple objects"],
+                    "correct": "Both A and B",
+                    "explanation": "Encapsulation bundles data and methods together and hides implementation details.",
+                    "resources": [
+                        {"title": "Python Encapsulation", "url": "https://docs.python.org/3/tutorial/classes.html"},
+                    ],
+                },
+            ],
+        },
+        5: {
+            "title": "Python Advanced Topics",
+            "description": "Test your understanding of Python advanced concepts",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is a decorator in Python?",
+                    "options": ["A function that modifies another function", "A class that wraps another class", "A module import statement", "A type annotation"],
+                    "correct": "A function that modifies another function",
+                    "explanation": "A decorator is a function that takes another function and extends its behavior.",
+                    "resources": [
+                        {"title": "Python Decorators", "url": "https://docs.python.org/3/glossary.html#term-decorator"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "What is the output of: def gen(): yield 1; yield 2; g = gen(); print(next(g))",
+                    "options": ["1", "2", "Error", "None"],
+                    "correct": "1",
+                    "explanation": "This is a generator function. next(g) returns the first yielded value, which is 1.",
+                    "resources": [
+                        {"title": "Python Generators", "url": "https://docs.python.org/3/tutorial/classes.html#generators"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the purpose of 'with' statement in Python?",
+                    "options": ["Context management", "Exception handling", "Loop control", "Function definition"],
+                    "correct": "Context management",
+                    "explanation": "The 'with' statement is used for context management, ensuring proper resource cleanup.",
+                    "resources": [
+                        {"title": "Python Context Managers", "url": "https://docs.python.org/3/reference/compound_stmts.html#with"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the output of: try: 1/0; except ZeroDivisionError: print('Error'); else: print('Success')",
+                    "options": ["Error", "Success", "Both", "Neither"],
+                    "correct": "Error",
+                    "explanation": "1/0 raises a ZeroDivisionError, so the except block executes and prints 'Error'.",
+                    "resources": [
+                        {"title": "Python Exception Handling", "url": "https://docs.python.org/3/tutorial/errors.html"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the purpose of __slots__ in Python classes?",
+                    "options": ["To save memory", "To restrict attributes", "Both A and B", "To improve performance"],
+                    "correct": "Both A and B",
+                    "explanation": "__slots__ restricts the attributes a class can have and saves memory by not creating a dictionary for each instance.",
+                    "resources": [
+                        {"title": "Python __slots__", "url": "https://docs.python.org/3/reference/datamodel.html#object.__slots__"},
                     ],
                 },
             ],
@@ -175,6 +470,294 @@ QUIZ_DATA = {
                     "explanation": "Overfitting occurs when a model learns the training data too well, including noise, leading to poor generalization.",
                     "resources": [
                         {"title": "Overfitting and Underfitting", "url": "https://scikit-learn.org/stable/auto_examples/model_selection/plot_underfitting_overfitting.html"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is the difference between classification and regression?",
+                    "options": [
+                        "Classification predicts categories, regression predicts continuous values",
+                        "Classification is faster than regression",
+                        "Regression is more accurate than classification",
+                        "There is no difference",
+                    ],
+                    "correct": "Classification predicts categories, regression predicts continuous values",
+                    "explanation": "Classification predicts discrete categories/classes, while regression predicts continuous numerical values.",
+                    "resources": [
+                        {"title": "Classification vs Regression", "url": "https://scikit-learn.org/stable/supervised_learning.html"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is cross-validation used for?",
+                    "options": [
+                        "To make models faster",
+                        "To reduce model complexity",
+                        "To assess model performance on unseen data",
+                        "To increase training data",
+                    ],
+                    "correct": "To assess model performance on unseen data",
+                    "explanation": "Cross-validation helps estimate how well a model will generalize to unseen data.",
+                    "resources": [
+                        {"title": "Cross-Validation", "url": "https://scikit-learn.org/stable/modules/cross_validation.html"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the purpose of feature scaling in machine learning?",
+                    "options": [
+                        "To make features more complex",
+                        "To ensure all features contribute equally to the model",
+                        "To reduce the number of features",
+                        "To increase model accuracy automatically",
+                    ],
+                    "correct": "To ensure all features contribute equally to the model",
+                    "explanation": "Feature scaling normalizes features so they have similar ranges and contribute equally to the model.",
+                    "resources": [
+                        {"title": "Feature Scaling", "url": "https://scikit-learn.org/stable/modules/preprocessing.html"},
+                    ],
+                },
+            ],
+        },
+        2: {
+            "title": "Supervised Learning",
+            "description": "Test your understanding of classification and regression algorithms",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the main difference between Linear Regression and Logistic Regression?",
+                    "options": [
+                        "Linear Regression is faster",
+                        "Linear Regression predicts continuous values, Logistic Regression predicts probabilities",
+                        "Logistic Regression is more accurate",
+                        "There is no difference",
+                    ],
+                    "correct": "Linear Regression predicts continuous values, Logistic Regression predicts probabilities",
+                    "explanation": "Linear Regression predicts continuous numerical values, while Logistic Regression predicts probabilities and is used for classification.",
+                    "resources": [
+                        {"title": "Linear vs Logistic Regression", "url": "https://scikit-learn.org/stable/modules/linear_model.html"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "What is the purpose of the sigmoid function in logistic regression?",
+                    "options": [
+                        "To make the model faster",
+                        "To convert any real number to a probability between 0 and 1",
+                        "To reduce overfitting",
+                        "To increase accuracy",
+                    ],
+                    "correct": "To convert any real number to a probability between 0 and 1",
+                    "explanation": "The sigmoid function maps any real number to a value between 0 and 1, making it suitable for probability prediction.",
+                    "resources": [
+                        {"title": "Sigmoid Function", "url": "https://en.wikipedia.org/wiki/Sigmoid_function"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is a decision tree in machine learning?",
+                    "options": [
+                        "A tree-like model for making decisions",
+                        "A model that splits data based on feature values",
+                        "Both A and B",
+                        "A type of neural network",
+                    ],
+                    "correct": "Both A and B",
+                    "explanation": "A decision tree is a tree-like model that makes decisions by splitting data based on feature values at each node.",
+                    "resources": [
+                        {"title": "Decision Trees", "url": "https://scikit-learn.org/stable/modules/tree.html"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is the purpose of the Support Vector Machine (SVM) algorithm?",
+                    "options": [
+                        "To find the best hyperplane that separates classes",
+                        "To reduce dimensionality",
+                        "To cluster data",
+                        "To make predictions faster",
+                    ],
+                    "correct": "To find the best hyperplane that separates classes",
+                    "explanation": "SVM finds the optimal hyperplane that best separates different classes in the data with maximum margin.",
+                    "resources": [
+                        {"title": "Support Vector Machines", "url": "https://scikit-learn.org/stable/modules/svm.html"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is the difference between precision and recall?",
+                    "options": [
+                        "Precision measures accuracy, recall measures completeness",
+                        "Precision = TP/(TP+FP), Recall = TP/(TP+FN)",
+                        "Both A and B",
+                        "There is no difference",
+                    ],
+                    "correct": "Both A and B",
+                    "explanation": "Precision measures how many of the predicted positives are actually positive, while recall measures how many of the actual positives were correctly predicted.",
+                    "resources": [
+                        {"title": "Precision and Recall", "url": "https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-f-measure-metrics"},
+                    ],
+                },
+            ],
+        },
+        3: {
+            "title": "Unsupervised Learning",
+            "description": "Test your understanding of clustering and dimensionality reduction",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the main goal of K-Means clustering?",
+                    "options": [
+                        "To classify data into predefined categories",
+                        "To group similar data points together",
+                        "To predict continuous values",
+                        "To reduce model complexity",
+                    ],
+                    "correct": "To group similar data points together",
+                    "explanation": "K-Means clustering groups data points into clusters based on their similarity, without predefined categories.",
+                    "resources": [
+                        {"title": "K-Means Clustering", "url": "https://scikit-learn.org/stable/modules/clustering.html#k-means"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "What is Principal Component Analysis (PCA) used for?",
+                    "options": [
+                        "To increase the number of features",
+                        "To reduce dimensionality while preserving variance",
+                        "To improve model accuracy",
+                        "To cluster data",
+                    ],
+                    "correct": "To reduce dimensionality while preserving variance",
+                    "explanation": "PCA reduces the number of features while preserving as much variance as possible in the data.",
+                    "resources": [
+                        {"title": "Principal Component Analysis", "url": "https://scikit-learn.org/stable/modules/decomposition.html#pca"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is hierarchical clustering?",
+                    "options": [
+                        "A clustering method that builds a tree of clusters",
+                        "A method that requires knowing the number of clusters beforehand",
+                        "Both A and B",
+                        "A type of supervised learning",
+                    ],
+                    "correct": "A clustering method that builds a tree of clusters",
+                    "explanation": "Hierarchical clustering builds a tree-like structure of clusters, showing relationships between different levels of clustering.",
+                    "resources": [
+                        {"title": "Hierarchical Clustering", "url": "https://scikit-learn.org/stable/modules/clustering.html#hierarchical-clustering"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is t-SNE used for?",
+                    "options": [
+                        "To visualize high-dimensional data in 2D or 3D",
+                        "To improve model performance",
+                        "To classify data",
+                        "To predict values",
+                    ],
+                    "correct": "To visualize high-dimensional data in 2D or 3D",
+                    "explanation": "t-SNE (t-Distributed Stochastic Neighbor Embedding) is used for dimensionality reduction and visualization of high-dimensional data.",
+                    "resources": [
+                        {"title": "t-SNE", "url": "https://scikit-learn.org/stable/modules/manifold.html#t-sne"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What are association rules used for?",
+                    "options": [
+                        "To find relationships between items in large datasets",
+                        "To classify data",
+                        "To predict continuous values",
+                        "To reduce dimensionality",
+                    ],
+                    "correct": "To find relationships between items in large datasets",
+                    "explanation": "Association rules discover relationships between items in large datasets, commonly used in market basket analysis.",
+                    "resources": [
+                        {"title": "Association Rules", "url": "https://en.wikipedia.org/wiki/Association_rule_learning"},
+                    ],
+                },
+            ],
+        },
+        4: {
+            "title": "Deep Learning Basics",
+            "description": "Test your understanding of neural networks and deep learning concepts",
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is a neural network?",
+                    "options": [
+                        "A network of interconnected nodes that process information",
+                        "A type of decision tree",
+                        "A clustering algorithm",
+                        "A regression model",
+                    ],
+                    "correct": "A network of interconnected nodes that process information",
+                    "explanation": "A neural network consists of interconnected nodes (neurons) that process and transmit information to learn patterns.",
+                    "resources": [
+                        {"title": "Neural Networks", "url": "https://scikit-learn.org/stable/modules/neural_networks_supervised.html"},
+                    ],
+                },
+                {
+                    "id": 2,
+                    "question": "What is backpropagation?",
+                    "options": [
+                        "A method to update neural network weights",
+                        "A type of clustering",
+                        "A dimensionality reduction technique",
+                        "A classification algorithm",
+                    ],
+                    "correct": "A method to update neural network weights",
+                    "explanation": "Backpropagation is an algorithm that calculates gradients and updates weights in neural networks to minimize error.",
+                    "resources": [
+                        {"title": "Backpropagation", "url": "https://en.wikipedia.org/wiki/Backpropagation"},
+                    ],
+                },
+                {
+                    "id": 3,
+                    "question": "What is a Convolutional Neural Network (CNN) primarily used for?",
+                    "options": [
+                        "Image processing and computer vision",
+                        "Text processing",
+                        "Time series analysis",
+                        "Clustering",
+                    ],
+                    "correct": "Image processing and computer vision",
+                    "explanation": "CNNs are specifically designed for processing grid-like data such as images, using convolutional layers to detect features.",
+                    "resources": [
+                        {"title": "Convolutional Neural Networks", "url": "https://en.wikipedia.org/wiki/Convolutional_neural_network"},
+                    ],
+                },
+                {
+                    "id": 4,
+                    "question": "What is a Recurrent Neural Network (RNN) used for?",
+                    "options": [
+                        "Processing sequential data",
+                        "Image classification",
+                        "Clustering",
+                        "Dimensionality reduction",
+                    ],
+                    "correct": "Processing sequential data",
+                    "explanation": "RNNs are designed to process sequential data by maintaining internal memory of previous inputs.",
+                    "resources": [
+                        {"title": "Recurrent Neural Networks", "url": "https://en.wikipedia.org/wiki/Recurrent_neural_network"},
+                    ],
+                },
+                {
+                    "id": 5,
+                    "question": "What is transfer learning?",
+                    "options": [
+                        "Using a pre-trained model for a new task",
+                        "Transferring data between models",
+                        "A type of clustering",
+                        "A dimensionality reduction technique",
+                    ],
+                    "correct": "Using a pre-trained model for a new task",
+                    "explanation": "Transfer learning involves using a model trained on one task and adapting it for a different but related task.",
+                    "resources": [
+                        {"title": "Transfer Learning", "url": "https://en.wikipedia.org/wiki/Transfer_learning"},
                     ],
                 },
             ],
@@ -1136,36 +1719,31 @@ def create_admin_user():
 # Create admin user on startup
 create_admin_user()
 
-# --- Create Demo Users for Testing ---
-def create_demo_users():
+# Remove demo student user if it exists
+def remove_demo_student():
     db = SessionLocal()
     try:
-        # Create demo student user
         demo_user = db.query(User).filter(User.email == "student@alu.edu").first()
-        if not demo_user:
-            hashed_password = get_password_hash("password123")
-            demo_user = User(
-                email="student@alu.edu",
-                hashed_password=hashed_password,
-                name="Demo Student",
-                role="user"
-            )
-            db.add(demo_user)
+        if demo_user:
+            # Delete user's progress and activities
+            db.query(UserProgress).filter(UserProgress.user_id == demo_user.id).delete()
+            db.query(UserQuizProgress).filter(UserQuizProgress.user_id == demo_user.id).delete()
+            db.query(UserActivity).filter(UserActivity.user_id == demo_user.id).delete()
+            # Delete the user
+            db.delete(demo_user)
             db.commit()
-            db.refresh(demo_user)
-            print("Demo student user created successfully!")
-            # Initialize demo user progress
-            initialize_user_progress(db, demo_user.id)
-            initialize_user_quiz_progress(db, demo_user.id)
+            print("Demo student user removed successfully!")
         else:
-            print("Demo student user already exists!")
+            print("Demo student user not found!")
     except Exception as e:
-        print(f"Error creating demo user: {e}")
+        print(f"Error removing demo student: {e}")
     finally:
         db.close()
 
-# Create demo users on startup
-create_demo_users()
+# Remove demo student on startup
+remove_demo_student()
+
+
 
 # --- Endpoints ---
 @app.post("/signup", response_model=UserOut)
@@ -1211,11 +1789,8 @@ def get_quiz(subject_id: int, level_id: int):
     quiz = subject.get(level_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-    # Don't send correct answers to frontend
-    questions = [
-        {k: v for k, v in q.items() if k != "correct"} for q in quiz["questions"]
-    ]
-    return {"title": quiz["title"], "description": quiz["description"], "questions": questions}
+    # Include correct answers for learning purposes
+    return {"title": quiz["title"], "description": quiz["description"], "questions": quiz["questions"]}
 
 @app.post("/quiz/{subject_id}/{level_id}/submit")
 def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(...), db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
@@ -1472,6 +2047,21 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
             streak += 1
         else:
             break
+    # Calculate total points (each quiz completed = 10 points + score points)
+    total_points = 0
+    for qp in quiz_progress_list:
+        if qp.completed == 1:
+            # Base points for completing quiz
+            total_points += 10
+            # Add score points from activity
+            activity = db.query(UserActivity).filter_by(
+                user_id=user.id, 
+                subject_id=qp.subject_id, 
+                level_id=qp.level_id
+            ).first()
+            if activity and activity.score:
+                total_points += activity.score
+    
     # Rank: get from leaderboard
     leaderboard = (
         db.query(User, UserProgress)
@@ -1490,7 +2080,14 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
         "avgScore": avg_score,
         "streak": streak,
         "rank": rank or "-",
+        "totalPoints": total_points,
     }
+
+# --- Endpoint: Get Total Students Count ---
+@app.get("/total-students")
+def get_total_students(db: Session = Depends(get_db)):
+    total_users = db.query(User).count()
+    return {"totalStudents": total_users}
 
 def update_user_progress(db, user_id, subject_id):
     # Count completed quizzes for this subject
@@ -1590,4 +2187,68 @@ def get_user_progress(user_id: int, admin_user: User = Depends(get_current_admin
             for act in activities[:10]  # Last 10 activities
         ]
     }
-    return result 
+    return result
+
+@app.delete("/admin/user/{user_id}")
+def delete_user(user_id: int, admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow admin to delete themselves
+    if user.id == admin_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    # Protect the original creator admin (AdminIbra@gmail.com)
+    if user.email == "AdminIbra@gmail.com":
+        raise HTTPException(status_code=400, detail="Cannot delete the original creator admin account")
+    
+    # Check if this is the last admin user
+    if user.role == "admin":
+        admin_count = db.query(User).filter(User.role == "admin").count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last admin user")
+    
+    # Delete user's progress and activities
+    db.query(UserProgress).filter(UserProgress.user_id == user_id).delete()
+    db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user_id).delete()
+    db.query(UserActivity).filter(UserActivity.user_id == user_id).delete()
+    
+    # Delete the user
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "User deleted successfully"}
+
+@app.post("/admin/create-admin")
+def create_admin_user(user_data: dict, admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    email = user_data.get("email")
+    password = user_data.get("password")
+    name = user_data.get("name", "")
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+    
+    # Create new admin user
+    hashed_password = get_password_hash(password)
+    new_admin = User(
+        email=email,
+        hashed_password=hashed_password,
+        name=name,
+        role="admin"
+    )
+    
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    
+    # Initialize progress for the new admin
+    initialize_user_progress(db, new_admin.id)
+    initialize_user_quiz_progress(db, new_admin.id)
+    
+    return {"message": "Admin user created successfully", "user": {"id": new_admin.id, "email": new_admin.email, "name": new_admin.name}}

@@ -1,102 +1,123 @@
+// =============================================================================
+// QUIZ PAGE COMPONENT
+// =============================================================================
+// This page displays individual quiz questions for a specific subject and level.
+// Handles quiz progression, answer submission, scoring, and completion tracking.
+// Includes timer functionality and immediate feedback for each question.
+
 "use client"
 
+// Import React hooks for state management and side effects
 import { useState, useEffect } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+// Import icons from Lucide React
 import { ArrowLeft, Clock, CheckCircle, XCircle, ArrowRight, BookOpen, ExternalLink, RotateCcw, Loader2 } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
+// Import API functions for quiz interaction
 import { updateUserProgress, completeQuizLevel, getUserSubjects, getUserActivity, submitQuiz, getQuiz } from "@/lib/api"
 
 export default function QuizPage() {
+  // Get route parameters for subject and level IDs
   const params = useParams()
   const router = useRouter()
-  const subjectId = Number.parseInt(params.subjectId as string)
-  const levelId = Number.parseInt(params.levelId as string)
+  const subjectId = Number.parseInt(params.subjectId as string) // Convert string to number
+  const levelId = Number.parseInt(params.levelId as string) // Convert string to number
 
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
-  const [showResult, setShowResult] = useState(false)
-  const [answers, setAnswers] = useState<{ [key: number]: string }>({})
-  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
-  const [quizCompleted, setQuizCompleted] = useState(false)
-  const [score, setScore] = useState(0)
-  const [result, setResult] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [currentQuiz, setCurrentQuiz] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  // Quiz state management
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0) // Track current question
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null) // User's selected answer
+  const [showResult, setShowResult] = useState(false) // Show feedback for current question
+  const [answers, setAnswers] = useState<{ [key: number]: string }>({}) // Store all user answers
+  const [timeLeft, setTimeLeft] = useState(300) // Timer: 5 minutes (300 seconds)
+  const [quizCompleted, setQuizCompleted] = useState(false) // Quiz completion status
+  const [score, setScore] = useState(0) // Final quiz score percentage
+  const [result, setResult] = useState<any>(null) // Quiz submission result
+  const [error, setError] = useState<string | null>(null) // Error message state
+  const [currentQuiz, setCurrentQuiz] = useState<any>(null) // Current quiz data
+  const [loading, setLoading] = useState(true) // Loading state for data fetching
 
-  // Fetch quiz data from backend
+  // Effect hook to fetch quiz data when component mounts or parameters change
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
-        setLoading(true)
-        const quizData = await getQuiz(subjectId, levelId)
-        setCurrentQuiz(quizData)
-        setTimeLeft(300) // Reset timer
+        setLoading(true) // Show loading state
+        const quizData = await getQuiz(subjectId, levelId) // Fetch quiz from API
+        setCurrentQuiz(quizData) // Store quiz data in state
+        setTimeLeft(300) // Reset timer to 5 minutes
       } catch (err) {
-        setError("Failed to load quiz")
-        console.error("Error fetching quiz:", err)
+        setError("Failed to load quiz") // Set error message
+        console.error("Error fetching quiz:", err) // Log error for debugging
       } finally {
-        setLoading(false)
+        setLoading(false) // Hide loading state
       }
     }
 
+    // Only fetch if we have valid subject and level IDs
     if (subjectId && levelId) {
       fetchQuiz()
     }
-  }, [subjectId, levelId])
+  }, [subjectId, levelId]) // Re-run when subject or level changes
 
-  // Timer effect
+  // Effect hook to handle quiz timer countdown
   useEffect(() => {
-    if (!currentQuiz || quizCompleted) return
+    if (!currentQuiz || quizCompleted) return // Don't run timer if no quiz or already completed
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          handleShowResult()
+          handleShowResult() // Auto-submit when time runs out
           return 0
         }
-        return prev - 1
+        return prev - 1 // Decrease timer by 1 second
       })
-    }, 1000)
+    }, 1000) // Update every second
 
-    return () => clearInterval(timer)
-  }, [currentQuiz, quizCompleted])
+    return () => clearInterval(timer) // Cleanup timer on unmount
+  }, [currentQuiz, quizCompleted]) // Re-run when quiz data or completion status changes
 
+  // Get the current question from the quiz data
   const currentQuestion = currentQuiz?.questions?.[currentQuestionIndex]
 
+  // Handle user selecting an answer for the current question
   const handleAnswerSelect = (answer: string) => {
-    setSelectedAnswer(answer)
-    setAnswers((prev) => ({ ...prev, [currentQuestionIndex]: answer }))
+    setSelectedAnswer(answer) // Update selected answer for current question
+    setAnswers((prev) => ({ ...prev, [currentQuestionIndex]: answer })) // Store answer in answers object
   }
 
+  // Handle progression to next question or quiz completion
   const handleNextQuestion = () => {
     if (selectedAnswer) {
       if (currentQuestionIndex < currentQuiz.questions.length - 1) {
+        // Move to next question
         setCurrentQuestionIndex(currentQuestionIndex + 1)
-        setSelectedAnswer(null)
-        setShowResult(false)
+        setSelectedAnswer(null) // Reset selected answer for new question
+        setShowResult(false) // Hide result feedback
       } else {
-        handleShowResult()
+        // This is the last question, complete the quiz
+        setQuizCompleted(true)
+        // Calculate final score
+        let correctCount = 0
+        currentQuiz.questions.forEach((question: any, index: number) => {
+          if (answers[index] === question.correct) {
+            correctCount++
+          }
+        })
+        setScore(Math.round((correctCount / currentQuiz.questions.length) * 100)) // Calculate percentage
       }
     }
   }
 
+  // Show feedback for current question without completing quiz
   const handleShowResult = () => {
-    setShowResult(true)
-    setQuizCompleted(true)
-    // Calculate score
-    let correctCount = 0
-    currentQuiz.questions.forEach((question: any, index: number) => {
-      if (answers[index] === question.correct) {
-        correctCount++
-      }
-    })
-    setScore(Math.round((correctCount / currentQuiz.questions.length) * 100))
+    setShowResult(true) // Show immediate feedback for current question
+    // Don't complete the quiz yet, just show feedback for current question
   }
 
   const handleQuizComplete = async () => {
@@ -124,7 +145,7 @@ export default function QuizPage() {
   const handleSubmit = async () => {
     try {
       const token = localStorage.getItem("authToken");
-      const res = await submitQuiz(subjectId, levelId, answers, token);
+      const res = await submitQuiz(subjectId, levelId, answers, token as string | undefined);
       setResult(res);
       setCurrentQuiz(null);
       // Optionally, refetch user subjects/activity or refresh dashboard/subject page
@@ -400,8 +421,12 @@ export default function QuizPage() {
               )}
 
               <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={handleShowResult} disabled={!selectedAnswer || showResult}>
-                  Check Answer
+                <Button
+                  variant="outline"
+                  onClick={handleShowResult}
+                  disabled={!selectedAnswer || showResult}
+                >
+                  {showResult ? "Answer Checked" : "Check Answer"}
                 </Button>
                 <Button onClick={handleNextQuestion} disabled={!showResult} className="bg-blue-600 hover:bg-blue-700">
                   {currentQuestionIndex < currentQuiz.questions.length - 1 ? (

@@ -1,49 +1,78 @@
+// =============================================================================
+// ADMIN PANEL PAGE COMPONENT
+// =============================================================================
+// This page provides administrative functionality for managing the platform.
+// Includes user management, subject/level creation, and progress monitoring.
+// Restricted to users with admin role only.
+
 "use client"
+
+// Import React hooks for state management and side effects
 import { useState, useEffect } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { getSubjects, getAllUsers, getUserProgress, addSubject, addLevel } from "@/lib/api"
+// Import API functions for admin operations
+import { getSubjects, getAllUsers, getUserProgress, addSubject, addLevel, deleteUser, createAdminUser } from "@/lib/api"
+// Import Next.js routing components
 import { useRouter } from "next/navigation"
+// Import API function for user authentication
 import { getMe } from "@/lib/api"
 
 export default function AdminPage() {
-    const [subjects, setSubjects] = useState<any[]>([])
-    const [subjectName, setSubjectName] = useState("")
-    const [subjectDesc, setSubjectDesc] = useState("")
-    const [addSubjectMsg, setAddSubjectMsg] = useState("")
-    const [levelSubjectId, setLevelSubjectId] = useState("")
-    const [levelName, setLevelName] = useState("")
-    const [levelDesc, setLevelDesc] = useState("")
-    const [addLevelMsg, setAddLevelMsg] = useState("")
-    const [users, setUsers] = useState<any[]>([])
-    const [selectedUser, setSelectedUser] = useState<any>(null)
-    const [userProgress, setUserProgress] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState("")
-    const router = useRouter()
+    // State management for subjects and levels
+    const [subjects, setSubjects] = useState<any[]>([]) // All subjects in the system
+    const [subjectName, setSubjectName] = useState("") // New subject name input
+    const [subjectDesc, setSubjectDesc] = useState("") // New subject description input
+    const [addSubjectMsg, setAddSubjectMsg] = useState("") // Success/error message for subject creation
+    const [levelSubjectId, setLevelSubjectId] = useState("") // Selected subject ID for new level
+    const [levelName, setLevelName] = useState("") // New level name input
+    const [levelDesc, setLevelDesc] = useState("") // New level description input
+    const [addLevelMsg, setAddLevelMsg] = useState("") // Success/error message for level creation
 
+    // State management for user management
+    const [users, setUsers] = useState<any[]>([]) // All users in the system
+    const [selectedUser, setSelectedUser] = useState<any>(null) // Currently selected user for progress view
+    const [userProgress, setUserProgress] = useState<any>(null) // Progress data for selected user
+
+    // General state management
+    const [loading, setLoading] = useState(true) // Loading state for data fetching
+    const [error, setError] = useState("") // Error message state
+
+    // Create admin form state
+    const [showCreateAdmin, setShowCreateAdmin] = useState(false) // Toggle admin creation form
+    const [adminFormData, setAdminFormData] = useState({
+        email: "",
+        password: "",
+        name: ""
+    }) // Form data for new admin user
+    const [createAdminMsg, setCreateAdminMsg] = useState("") // Success/error message for admin creation
+
+    const router = useRouter() // Next.js router for navigation
+
+    // Effect hook to verify admin access and load admin data
     useEffect(() => {
         const token = localStorage.getItem("authToken")
         if (!token) {
-            router.push("/login")
+            router.push("/login") // Redirect to login if no token found
             return
         }
 
-        // Check if user is admin
+        // Verify user is admin before allowing access
         getMe(token)
             .then((user) => {
                 if (user.role !== "admin") {
-                    setError("Access denied. Admin privileges required.")
+                    setError("Access denied. Admin privileges required.") // Show error for non-admin users
                     return
                 }
-                loadAdminData(token)
+                loadAdminData(token) // Load admin data if user is admin
             })
             .catch(() => {
-                localStorage.removeItem("authToken")
-                router.push("/login")
+                localStorage.removeItem("authToken") // Clear invalid token
+                router.push("/login") // Redirect to login
             })
     }, [router])
 
@@ -130,6 +159,56 @@ export default function AdminPage() {
         }
     }
 
+    const handleDeleteUser = async (user: any) => {
+        // Check if this is the protected creator admin
+        if (user.email === "AdminIbra@gmail.com") {
+            alert("Cannot delete the original creator admin account. This account is protected.")
+            return
+        }
+
+        const isAdmin = user.role === "admin"
+        const confirmMessage = isAdmin
+            ? `Are you sure you want to delete ADMIN user ${user.email}? This action cannot be undone and will remove admin privileges.`
+            : `Are you sure you want to delete user ${user.email}? This action cannot be undone.`
+
+        if (!confirm(confirmMessage)) {
+            return
+        }
+
+        const token = localStorage.getItem("authToken")
+        if (!token) return
+
+        try {
+            await deleteUser(user.id, token)
+            // Reload users list
+            const usersData = await getAllUsers(token)
+            setUsers(usersData)
+            alert("User deleted successfully")
+        } catch (err: any) {
+            alert(err.message || "Failed to delete user")
+        }
+    }
+
+    const handleCreateAdmin = async (e: any) => {
+        e.preventDefault()
+        setCreateAdminMsg("")
+
+        const token = localStorage.getItem("authToken")
+        if (!token) return
+
+        try {
+            await createAdminUser(adminFormData, token)
+            setCreateAdminMsg("Admin user created successfully!")
+            setAdminFormData({ email: "", password: "", name: "" })
+            setShowCreateAdmin(false)
+            // Reload users list
+            const usersData = await getAllUsers(token)
+            setUsers(usersData)
+        } catch (err: any) {
+            setCreateAdminMsg(err.message || "Failed to create admin user")
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
@@ -211,6 +290,60 @@ export default function AdminPage() {
                     </Card>
                 </div>
 
+                {/* Create Admin Section */}
+                <div className="mt-12">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold">Admin Management</h2>
+                        <Button onClick={() => setShowCreateAdmin(true)}>
+                            Add New Admin
+                        </Button>
+                    </div>
+
+                    {showCreateAdmin && (
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle>Create New Admin User</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={handleCreateAdmin} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <Input
+                                            placeholder="Email"
+                                            type="email"
+                                            value={adminFormData.email}
+                                            onChange={(e) => setAdminFormData({ ...adminFormData, email: e.target.value })}
+                                            required
+                                        />
+                                        <Input
+                                            placeholder="Password"
+                                            type="password"
+                                            value={adminFormData.password}
+                                            onChange={(e) => setAdminFormData({ ...adminFormData, password: e.target.value })}
+                                            required
+                                        />
+                                        <Input
+                                            placeholder="Name (Optional)"
+                                            value={adminFormData.name}
+                                            onChange={(e) => setAdminFormData({ ...adminFormData, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <Button type="submit">Create Admin</Button>
+                                        <Button type="button" variant="outline" onClick={() => setShowCreateAdmin(false)}>
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                    {createAdminMsg && (
+                                        <div className={`text-sm mt-2 ${createAdminMsg.includes("successfully") ? "text-green-600" : "text-red-600"}`}>
+                                            {createAdminMsg}
+                                        </div>
+                                    )}
+                                </form>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+
                 {/* Users Table */}
                 <div className="mt-12">
                     <h2 className="text-2xl font-bold mb-4">Registered Users</h2>
@@ -245,12 +378,32 @@ export default function AdminPage() {
                                             {user.last_activity ? new Date(user.last_activity).toLocaleDateString() : "Never"}
                                         </td>
                                         <td className="px-4 py-2 border-b">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleViewUserProgress(user)}
-                                            >
-                                                View Progress
-                                            </Button>
+                                            <div className="flex space-x-2">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleViewUserProgress(user)}
+                                                >
+                                                    View Progress
+                                                </Button>
+                                                {user.email === "AdminIbra@gmail.com" ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled
+                                                        title="Protected creator account"
+                                                    >
+                                                        Protected
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => handleDeleteUser(user)}
+                                                    >
+                                                        {user.role === "admin" ? "Delete Admin" : "Delete"}
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

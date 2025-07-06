@@ -1,27 +1,86 @@
+// =============================================================================
+// LEADERBOARD PAGE COMPONENT
+// =============================================================================
+// This page displays user rankings and performance statistics.
+// Shows top performers, user stats, and provides goal-setting features.
+// Includes different time period filters and social features.
+
 "use client"
 
+// Import React hooks for state management and side effects
 import { useState, useEffect } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trophy, Medal, Award, TrendingUp, Users, Target, ArrowLeft, Code, Crown, Star, BookOpen } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+// Import icons from Lucide React
+import { Trophy, Medal, Award, TrendingUp, Users, Target, ArrowLeft, Code, Crown, Star, BookOpen, Send, Plus } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
-import { getLeaderboard } from "@/lib/api"
+// Import API functions for leaderboard data
+import { getLeaderboard, getUserStats, getTotalStudents } from "@/lib/api"
 
 export default function LeaderboardPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("all-time")
-  const [leaderboard, setLeaderboard] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  // State management for leaderboard data
+  const [selectedPeriod, setSelectedPeriod] = useState("all-time") // Selected time period filter
+  const [leaderboard, setLeaderboard] = useState<any[]>([]) // Leaderboard rankings data
+  const [userStats, setUserStats] = useState<any>(null) // Current user's statistics
+  const [totalStudents, setTotalStudents] = useState(0) // Total number of students
+  const [loading, setLoading] = useState(true) // Loading state for data fetching
+  const [error, setError] = useState("") // Error message state
+
+  // Modal states for interactive features
+  const [showGoalsModal, setShowGoalsModal] = useState(false) // Toggle goal setting modal
+  const [showChallengeModal, setShowChallengeModal] = useState(false) // Toggle challenge modal
+  const [goalData, setGoalData] = useState({
+    type: "",
+    target: "",
+    deadline: "",
+    description: ""
+  }) // Form data for goal setting
+  const [challengeData, setChallengeData] = useState({
+    friendEmail: "",
+    message: "",
+    quizType: ""
+  }) // Form data for friend challenges
 
   useEffect(() => {
-    setLoading(true)
-    getLeaderboard(selectedPeriod)
-      .then(res => setLeaderboard(res.data))
-      .catch(() => setError("Leaderboard not found"))
-      .finally(() => setLoading(false))
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        // Get leaderboard data
+        const leaderboardRes = await getLeaderboard(selectedPeriod)
+        setLeaderboard(leaderboardRes.data)
+
+        // Get user stats (if user is logged in)
+        const token = localStorage.getItem("token")
+        if (token) {
+          try {
+            const statsRes = await getUserStats(token)
+            setUserStats(statsRes)
+          } catch (err) {
+            console.log("User not logged in or stats not available")
+          }
+        }
+
+        // Get total students count
+        const totalRes = await getTotalStudents()
+        setTotalStudents(totalRes.totalStudents)
+      } catch (err) {
+        setError("Failed to load leaderboard data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [selectedPeriod])
 
   const getRankIcon = (rank: number) => {
@@ -48,6 +107,41 @@ export default function LeaderboardPage() {
       default:
         return "bg-slate-100 text-slate-700"
     }
+  }
+
+  const handleSetGoal = () => {
+    // Validate form
+    if (!goalData.type || !goalData.target || !goalData.deadline) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    // In a real app, this would save to backend
+    console.log("Setting goal:", goalData)
+    alert(`Goal set successfully! You want to ${goalData.type} ${goalData.target} by ${goalData.deadline}`)
+    setShowGoalsModal(false)
+    setGoalData({ type: "", target: "", deadline: "", description: "" })
+  }
+
+  const handleChallengeFriend = () => {
+    // Validate form
+    if (!challengeData.friendEmail || !challengeData.quizType) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(challengeData.friendEmail)) {
+      alert("Please enter a valid email address")
+      return
+    }
+
+    // In a real app, this would send challenge to backend
+    console.log("Challenging friend:", challengeData)
+    alert(`Challenge sent to ${challengeData.friendEmail}! They'll be notified of your challenge.`)
+    setShowChallengeModal(false)
+    setChallengeData({ friendEmail: "", message: "", quizType: "" })
   }
 
   return (
@@ -112,62 +206,73 @@ export default function LeaderboardPage() {
                   </TabsList>
 
                   <TabsContent value={selectedPeriod} className="space-y-4">
-                    {leaderboard.map((user, index) => (
-                      <div
-                        key={user.rank}
-                        className={`flex items-center space-x-4 p-4 rounded-lg border-2 transition-all ${user.rank <= 3
-                          ? "border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                          }`}
-                      >
-                        {/* Rank */}
+                    {loading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-slate-600 mt-2">Loading leaderboard...</p>
+                      </div>
+                    ) : error ? (
+                      <div className="text-center py-8">
+                        <p className="text-red-600">{error}</p>
+                      </div>
+                    ) : (
+                      leaderboard.map((user, index) => (
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center ${getRankBadge(user.rank)}`}
+                          key={user.rank}
+                          className={`flex items-center space-x-4 p-4 rounded-lg border-2 transition-all ${user.rank <= 3
+                            ? "border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
                         >
-                          {getRankIcon(user.rank)}
-                        </div>
+                          {/* Rank */}
+                          <div
+                            className={`w-12 h-12 rounded-full flex items-center justify-center ${getRankBadge(user.rank)}`}
+                          >
+                            {getRankIcon(user.rank)}
+                          </div>
 
-                        {/* User Info */}
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <Avatar className="w-10 h-10">
-                              <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm">
-                                {user.name
-                                  .split(" ")
-                                  .map((n: string) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-semibold text-slate-900">{user.name}</h3>
-                              <p className="text-sm text-slate-600">{user.email}</p>
+                          {/* User Info */}
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <Avatar className="w-10 h-10">
+                                <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm">
+                                  {user.name
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <h3 className="font-semibold text-slate-900">{user.name}</h3>
+                                <p className="text-sm text-slate-600">{user.email}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {user.subjects.map((subject: string, subjectIndex: number) => (
+                                <Badge key={subjectIndex} variant="secondary" className="text-xs">
+                                  {subject}
+                                </Badge>
+                              ))}
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-2">
-                            {user.subjects.map((subject: string, subjectIndex: number) => (
-                              <Badge key={subjectIndex} variant="secondary" className="text-xs">
-                                {subject}
-                              </Badge>
-                            ))}
+                          {/* Stats */}
+                          <div className="text-right space-y-1">
+                            <div className="text-2xl font-bold text-slate-900">{user.score.toLocaleString()}</div>
+                            <div className="text-xs text-slate-600">Total Points</div>
+                            <div className="flex items-center space-x-4 text-xs text-slate-500">
+                              <span>{user.quizzes} quizzes</span>
+                              <span>{user.avgScore}% avg</span>
+                              <span className="flex items-center">
+                                <TrendingUp className="w-3 h-3 mr-1" />
+                                {user.streak}
+                              </span>
+                            </div>
                           </div>
                         </div>
-
-                        {/* Stats */}
-                        <div className="text-right space-y-1">
-                          <div className="text-2xl font-bold text-slate-900">{user.score.toLocaleString()}</div>
-                          <div className="text-xs text-slate-600">Total Points</div>
-                          <div className="flex items-center space-x-4 text-xs text-slate-500">
-                            <span>{user.quizzes} quizzes</span>
-                            <span>{user.avgScore}% avg</span>
-                            <span className="flex items-center">
-                              <TrendingUp className="w-3 h-3 mr-1" />
-                              {user.streak}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </TabsContent>
                 </Tabs>
               </CardContent>
@@ -189,26 +294,53 @@ export default function LeaderboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-center">
-                  <div className="text-3xl font-bold mb-2">#23</div>
-                  <p className="text-blue-100 mb-4">out of 1,247 students</p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-blue-100">Total Points:</span>
-                      <span className="font-medium">1,847</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-100">Quizzes Completed:</span>
-                      <span className="font-medium">87</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-100">Average Score:</span>
-                      <span className="font-medium">82%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-100">Current Streak:</span>
-                      <span className="font-medium">5 days</span>
-                    </div>
-                  </div>
+                  {userStats ? (
+                    <>
+                      <div className="text-3xl font-bold mb-2">#{userStats.rank}</div>
+                      <p className="text-blue-100 mb-4">out of {totalStudents.toLocaleString()} students</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Total Points:</span>
+                          <span className="font-medium">{userStats.totalPoints?.toLocaleString() || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Quizzes Completed:</span>
+                          <span className="font-medium">{userStats.totalCompleted || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Average Score:</span>
+                          <span className="font-medium">{userStats.avgScore || 0}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Current Streak:</span>
+                          <span className="font-medium">{userStats.streak || 0} days</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl font-bold mb-2">#-</div>
+                      <p className="text-blue-100 mb-4">out of {totalStudents.toLocaleString()} students</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Total Points:</span>
+                          <span className="font-medium">0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Quizzes Completed:</span>
+                          <span className="font-medium">0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Average Score:</span>
+                          <span className="font-medium">0%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-100">Current Streak:</span>
+                          <span className="font-medium">0 days</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -225,14 +357,157 @@ export default function LeaderboardPage() {
                     Take More Quizzes
                   </Button>
                 </Link>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <Target className="w-4 h-4 mr-2" />
-                  Set Goals
-                </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <Users className="w-4 h-4 mr-2" />
-                  Challenge Friends
-                </Button>
+
+                {/* Set Goals Modal */}
+                <Dialog open={showGoalsModal} onOpenChange={setShowGoalsModal}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start bg-transparent">
+                      <Target className="w-4 h-4 mr-2" />
+                      Set Goals
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Set Your Learning Goals</DialogTitle>
+                      <DialogDescription>
+                        Set specific goals to track your progress and stay motivated.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="goal-type" className="text-right">
+                          Goal Type
+                        </Label>
+                        <Select value={goalData.type} onValueChange={(value) => setGoalData({ ...goalData, type: value })}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select goal type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="complete">Complete Quizzes</SelectItem>
+                            <SelectItem value="score">Achieve Score</SelectItem>
+                            <SelectItem value="streak">Maintain Streak</SelectItem>
+                            <SelectItem value="rank">Reach Rank</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="target" className="text-right">
+                          Target
+                        </Label>
+                        <Input
+                          id="target"
+                          value={goalData.target}
+                          onChange={(e) => setGoalData({ ...goalData, target: e.target.value })}
+                          placeholder="e.g., 50 quizzes, 90% score"
+                          className="col-span-3"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="deadline" className="text-right">
+                          Deadline
+                        </Label>
+                        <Input
+                          id="deadline"
+                          type="date"
+                          value={goalData.deadline}
+                          onChange={(e) => setGoalData({ ...goalData, deadline: e.target.value })}
+                          className="col-span-3"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="description" className="text-right">
+                          Description
+                        </Label>
+                        <Textarea
+                          id="description"
+                          value={goalData.description}
+                          onChange={(e) => setGoalData({ ...goalData, description: e.target.value })}
+                          placeholder="Why is this goal important to you?"
+                          className="col-span-3"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowGoalsModal(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSetGoal}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Set Goal
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Challenge Friends Modal */}
+                <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start bg-transparent">
+                      <Users className="w-4 h-4 mr-2" />
+                      Challenge Friends
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Challenge a Friend</DialogTitle>
+                      <DialogDescription>
+                        Send a friendly challenge to compete with your friends on the leaderboard.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="friend-email" className="text-right">
+                          Friend's Email
+                        </Label>
+                        <Input
+                          id="friend-email"
+                          type="email"
+                          value={challengeData.friendEmail}
+                          onChange={(e) => setChallengeData({ ...challengeData, friendEmail: e.target.value })}
+                          placeholder="friend@example.com"
+                          className="col-span-3"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="quiz-type" className="text-right">
+                          Quiz Type
+                        </Label>
+                        <Select value={challengeData.quizType} onValueChange={(value) => setChallengeData({ ...challengeData, quizType: value })}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select quiz type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="python">Python Programming</SelectItem>
+                            <SelectItem value="javascript">JavaScript</SelectItem>
+                            <SelectItem value="machine-learning">Machine Learning</SelectItem>
+                            <SelectItem value="any">Any Subject</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="message" className="text-right">
+                          Message
+                        </Label>
+                        <Textarea
+                          id="message"
+                          value={challengeData.message}
+                          onChange={(e) => setChallengeData({ ...challengeData, message: e.target.value })}
+                          placeholder="Add a personal message to your challenge..."
+                          className="col-span-3"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowChallengeModal(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleChallengeFriend}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Challenge
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           </div>

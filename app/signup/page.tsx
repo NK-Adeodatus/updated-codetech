@@ -1,29 +1,46 @@
+// =============================================================================
+// SIGNUP PAGE COMPONENT
+// =============================================================================
+// This page allows new users to create an account with email and password.
+// Includes password validation, strength indicators, and form validation.
+
 "use client"
 
+// Import React types for TypeScript
 import type React from "react"
 
+// Import React hooks for state management
 import { useState } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+// Import icons from Lucide React
 import { Code, Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+// Import API function for user registration
 import { signup } from "@/lib/api"
 
 export default function SignUpPage() {
+  // Form data state for all input fields
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
   })
+  // State to toggle password visibility for better UX
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  // Error message state for form validation
   const [error, setError] = useState("")
+  // Loading state during form submission
   const [isLoading, setIsLoading] = useState(false)
+  // Next.js router for navigation after successful signup
   const router = useRouter()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,7 +122,7 @@ export default function SignUpPage() {
                   id="name"
                   name="name"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Your Name"
                   value={formData.name}
                   onChange={handleChange}
                   required
@@ -119,7 +136,7 @@ export default function SignUpPage() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="student@alu.edu"
+                  placeholder="Your Email"
                   value={formData.email}
                   onChange={handleChange}
                   required

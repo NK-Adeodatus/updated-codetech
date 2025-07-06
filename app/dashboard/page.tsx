@@ -1,11 +1,21 @@
+// =============================================================================
+// DASHBOARD PAGE COMPONENT
+// =============================================================================
+// This is the main dashboard that users see after logging in.
+// Displays user progress, statistics, subjects, and recent activity.
+// Includes authentication checks and user profile management.
+
 "use client"
 
+// Import React hooks for state management and side effects
 import { useState, useEffect } from "react"
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+// Import icons from Lucide React
 import {
   BookOpen,
   Trophy,
@@ -20,10 +30,13 @@ import {
   Code,
   LogOut,
 } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+// Import API functions for data fetching
 import { getMe, getDashboardData, getUserSubjects, getUserActivity, getUserStats } from "@/lib/api"
 
+// Mapping of icon names to their React components for dynamic rendering
 const iconMap: Record<string, React.ElementType> = {
   BookOpen,
   Target,
@@ -32,28 +45,34 @@ const iconMap: Record<string, React.ElementType> = {
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null)
-  const router = useRouter()
-  const [subjects, setSubjects] = useState<any[]>([])
-  const [stats, setStats] = useState<any[]>([])
-  const [recentActivity, setRecentActivity] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  // State management for user data and authentication
+  const [user, setUser] = useState<any>(null) // Current user profile data
+  const router = useRouter() // Next.js router for navigation
+  // State for dashboard data
+  const [subjects, setSubjects] = useState<any[]>([]) // User's subjects with progress
+  const [stats, setStats] = useState<any[]>([]) // Dashboard statistics
+  const [recentActivity, setRecentActivity] = useState<any[]>([]) // User's recent activity
+  const [loading, setLoading] = useState(true) // Loading state for data fetching
+  const [error, setError] = useState("") // Error message state
+  // User performance statistics
   const [userStats, setUserStats] = useState<any>({ totalCompleted: 0, avgScore: 0, streak: 0, rank: '-' })
 
+  // Effect hook to load dashboard data on component mount
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     if (!token) {
-      router.push("/login")
+      router.push("/login") // Redirect to login if no token found
       return
     }
+    // Fetch all dashboard data in parallel for better performance
     Promise.all([
-      getDashboardData(),
-      getUserSubjects(token),
-      getUserActivity(token),
-      getUserStats(token),
+      getDashboardData(), // Get general dashboard statistics
+      getUserSubjects(token), // Get user's subjects with progress
+      getUserActivity(token), // Get user's recent activity
+      getUserStats(token), // Get user's performance stats
     ])
       .then(([dashboard, userSubjects, activity, stats]) => {
+        // Update state with fetched data
         setStats(dashboard.stats)
         setRecentActivity(activity)
         setSubjects(userSubjects)
@@ -63,23 +82,27 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [router])
 
+  // Effect hook to verify user authentication and get user profile
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     if (!token) {
-      router.push("/login")
+      router.push("/login") // Redirect to login if no token found
       return
     }
+    // Verify token and get user profile
     getMe(token)
-      .then(setUser)
+      .then(setUser) // Set user data if token is valid
       .catch(() => {
+        // Clear invalid token and redirect to login
         localStorage.removeItem("authToken")
         router.push("/login")
       })
   }, [router])
 
+  // Handle user logout by clearing token and redirecting to home
   const handleLogout = () => {
-    localStorage.removeItem("authToken")
-    router.push("/")
+    localStorage.removeItem("authToken") // Remove authentication token
+    router.push("/") // Redirect to homepage
   }
 
   if (loading) {

@@ -1,40 +1,57 @@
+// =============================================================================
+// SUBJECT PAGE COMPONENT
+// =============================================================================
+// This page displays detailed information about a specific subject.
+// Shows progress, levels, and learning path for the selected subject.
+// Includes authentication checks and progress tracking.
+
 "use client"
+
+// Import UI components from the design system
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+// Import icons from Lucide React
 import { ArrowLeft, Play, Lock, CheckCircle, BookOpen, Clock, Target, Trophy, Code } from "lucide-react"
+// Import Next.js routing components
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
+// Import React hooks for state management and side effects
 import { useEffect, useState } from "react"
+// Import API functions for subject data
 import { getUserSubjects, getSubject } from "@/lib/api"
 
 export default function SubjectPage() {
+  // Get route parameters and router instance
   const params = useParams()
   const router = useRouter()
-  const subjectId = Number.parseInt(params.id as string)
+  const subjectId = Number.parseInt(params.id as string) // Convert string ID to number
 
-  const [subject, setSubject] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  // State management for subject data
+  const [subject, setSubject] = useState<any>(null) // Current subject data
+  const [loading, setLoading] = useState(true) // Loading state for data fetching
+  const [error, setError] = useState("") // Error message state
 
+  // Effect hook to load subject data when component mounts or subject ID changes
   useEffect(() => {
-    setLoading(true)
+    setLoading(true) // Show loading state
     const token = localStorage.getItem("authToken")
     if (!token) {
-      setError("Not authenticated")
+      setError("Not authenticated") // Set error if no authentication token
       setLoading(false)
       return
     }
+    // Fetch user's subjects and find the specific subject
     getUserSubjects(token)
       .then((subjects) => {
-        const subj = subjects.find((s: any) => s.id === subjectId)
-        if (!subj) throw new Error()
-        setSubject(subj)
+        const subj = subjects.find((s: any) => s.id === subjectId) // Find subject by ID
+        if (!subj) throw new Error() // Throw error if subject not found
+        setSubject(subj) // Set subject data in state
       })
-      .catch(() => setError("Subject Not Found"))
-      .finally(() => setLoading(false))
-  }, [subjectId])
+      .catch(() => setError("Subject Not Found")) // Handle errors
+      .finally(() => setLoading(false)) // Hide loading state
+  }, [subjectId]) // Re-run when subject ID changes
 
   if (loading) {
     return (
