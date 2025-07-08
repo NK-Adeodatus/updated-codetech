@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 // Import API functions for admin operations
-import { getSubjects, getAllUsers, getUserProgress, addSubject, addLevel, deleteUser, createAdminUser } from "@/lib/api"
+import { getSubjects, getAllUsers, getUserProgress, addSubject, addLevel, deleteUser, createAdminUser, resetUserProgress } from "@/lib/api"
 // Import Next.js routing components
 import { useRouter } from "next/navigation"
 // Import API function for user authentication
@@ -186,6 +186,23 @@ export default function AdminPage() {
             alert("User deleted successfully")
         } catch (err: any) {
             alert(err.message || "Failed to delete user")
+        }
+    }
+
+    const handleResetUserProgress = async (user: any) => {
+        if (!window.confirm(`Are you sure you want to reset progress for user ${user.email}? This will erase all their progress and stats.`)) {
+            return;
+        }
+        const token = localStorage.getItem("authToken")
+        if (!token) return
+        try {
+            await resetUserProgress(user.id, token)
+            // Reload users list
+            const usersData = await getAllUsers(token)
+            setUsers(usersData)
+            alert("User progress reset successfully")
+        } catch (err: any) {
+            alert(err.message || "Failed to reset user progress")
         }
     }
 
@@ -381,26 +398,25 @@ export default function AdminPage() {
                                             <div className="flex space-x-2">
                                                 <Button
                                                     size="sm"
+                                                    variant="outline"
                                                     onClick={() => handleViewUserProgress(user)}
                                                 >
                                                     View Progress
                                                 </Button>
-                                                {user.email === "AdminIbra@gmail.com" ? (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled
-                                                        title="Protected creator account"
-                                                    >
-                                                        Protected
-                                                    </Button>
-                                                ) : (
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => handleResetUserProgress(user)}
+                                                >
+                                                    Reset Progress
+                                                </Button>
+                                                {user.email !== "AdminIbra@gmail.com" && (
                                                     <Button
                                                         size="sm"
                                                         variant="destructive"
                                                         onClick={() => handleDeleteUser(user)}
                                                     >
-                                                        {user.role === "admin" ? "Delete Admin" : "Delete"}
+                                                        Delete User
                                                     </Button>
                                                 )}
                                             </div>

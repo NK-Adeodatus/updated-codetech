@@ -8,7 +8,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Body, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
@@ -18,6 +18,8 @@ import sqlite3
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
 
 # =============================================================================
 # APPLICATION CONFIGURATION
@@ -83,6 +85,29 @@ class UserActivity(Base):
     timestamp = Column(String)  # When the action occurred
     score = Column(Integer, default=None)  # Quiz score (if applicable)
     user = relationship("User")  # SQLAlchemy relationship to User
+
+# --- User Goal Model ---
+class UserGoal(Base):
+    __tablename__ = "user_goals"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    type = Column(String)
+    target = Column(String)
+    deadline = Column(String)
+    description = Column(String)
+    created_at = Column(String, default=datetime.utcnow().isoformat)
+    user = relationship("User")
+
+# --- User Challenge Model ---
+class UserChallenge(Base):
+    __tablename__ = "user_challenges"
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"))
+    recipient_email = Column(String)
+    message = Column(String)
+    quiz_type = Column(String)
+    created_at = Column(String, default=datetime.utcnow().isoformat)
+    user = relationship("User", foreign_keys=[sender_id])
 
 # Create all database tables based on the models defined above
 Base.metadata.create_all(bind=engine)
@@ -1836,28 +1861,31 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
 # --- Leaderboard Endpoint ---
 @app.get("/leaderboard")
 def get_leaderboard(period: str = "all-time", db: Session = Depends(get_db)):
-    # For demo, rank by total completed quizzes
     leaderboard = (
         db.query(User, UserProgress)
         .join(UserProgress, User.id == UserProgress.user_id)
+        .filter(User.role != "admin")
         .all()
     )
     user_scores = {}
     for user, progress in leaderboard:
         if user.email not in user_scores:
+            # NEW: Only count real quiz completions for avgScore
+            activities = db.query(UserActivity).filter_by(user_id=user.id).all()
+            scores = [a.score for a in activities if a.score is not None and a.action.startswith("Completed Quiz")]
+            avg_score = int(sum(scores) / len(scores)) if scores else 0
             user_scores[user.email] = {
                 "name": user.email.split("@")[0].replace(".", " ").title(),
                 "email": user.email,
                 "score": 0,
                 "quizzes": 0,
-                "avgScore": 0,
+                "avgScore": avg_score,
                 "streak": 0,
                 "subjects": [],
             }
         user_scores[user.email]["score"] += progress.completed_quizzes
         user_scores[user.email]["quizzes"] += progress.completed_quizzes
         user_scores[user.email]["subjects"].append(next((s["name"] for s in SUBJECTS if s["id"] == progress.subject_id), ""))
-    # Convert to list and sort
     leaderboard_list = list(user_scores.values())
     leaderboard_list.sort(key=lambda x: x["score"], reverse=True)
     for i, entry in enumerate(leaderboard_list):
@@ -1891,11 +1919,17 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
     result = []
     for subject in SUBJECTS:
         subj = subject.copy()
-        completed_quizzes = sum(
-            1 for qp in quiz_progress_list if qp.subject_id == subject["id"] and qp.completed == 1
-        )
+        # Calculate completed quizzes as the sum of quizzes for completed levels
+        completed_quizzes = 0
+        total_quizzes = 0
+        for level in subject["levels"]:
+            total_quizzes += level.get("quizzes", 1)
+            qp = next((qp for qp in quiz_progress_list if qp.subject_id == subject["id"] and qp.level_id == level["id"]), None)
+            if qp and qp.completed == 1:
+                completed_quizzes += level.get("quizzes", 1)
         subj["completedQuizzes"] = completed_quizzes
-        subj["progress"] = int((completed_quizzes / subject["totalQuizzes"]) * 100) if subject["totalQuizzes"] else 0
+        subj["totalQuizzes"] = total_quizzes
+        subj["progress"] = int((completed_quizzes / total_quizzes) * 100) if total_quizzes else 0
         # Level progress and unlocks
         levels = []
         prev_completed = True
@@ -1911,8 +1945,6 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
             if unlocked and not completed and not found_current:
                 current = True
                 found_current = True
-            # Debug logging
-            print(f"Subject {subject['id']} Level {level['id']} - completed: {completed}, unlocked: {unlocked}, current: {current}")
             levels.append({
                 **level,
                 "completed": completed,
@@ -1969,15 +2001,22 @@ def initialize_user_quiz_progress(db, user_id):
 
 # --- Log Activity Helper ---
 def log_user_activity(db, user_id, subject_id, level_id, action, score=None):
-    activity = UserActivity(
-        user_id=user_id,
-        subject_id=subject_id,
-        level_id=level_id,
-        action=action,
-        timestamp=datetime.utcnow().isoformat(),
-        score=score,
-    )
-    db.add(activity)
+    # Update if exists, else create new
+    activity = db.query(UserActivity).filter_by(user_id=user_id, subject_id=subject_id, level_id=level_id).first()
+    if activity:
+        activity.action = action
+        activity.timestamp = datetime.utcnow().isoformat()
+        activity.score = score
+    else:
+        activity = UserActivity(
+            user_id=user_id,
+            subject_id=subject_id,
+            level_id=level_id,
+            action=action,
+            timestamp=datetime.utcnow().isoformat(),
+            score=score,
+        )
+        db.add(activity)
     db.commit()
 
 # --- Endpoint: Get User Activity ---
@@ -2030,12 +2069,11 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
     user = get_user(db, email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    # Total quizzes completed
     quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
     total_completed = sum(1 for qp in quiz_progress_list if qp.completed == 1)
-    # Average score from activity
+    # NEW: Only count real quiz completions for avgScore
     activities = db.query(UserActivity).filter_by(user_id=user.id).all()
-    scores = [a.score for a in activities if a.score is not None]
+    scores = [a.score for a in activities if a.score is not None and a.action.startswith("Completed Quiz")]
     avg_score = int(sum(scores) / len(scores)) if scores else 0
     # Streak: count consecutive days with activity
     days = set(a.timestamp[:10] for a in activities)
@@ -2059,7 +2097,7 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
                 subject_id=qp.subject_id, 
                 level_id=qp.level_id
             ).first()
-            if activity and activity.score:
+            if activity and activity.score is not None:
                 total_points += activity.score
     
     # Rank: get from leaderboard
@@ -2086,7 +2124,9 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
 # --- Endpoint: Get Total Students Count ---
 @app.get("/total-students")
 def get_total_students(db: Session = Depends(get_db)):
-    total_users = db.query(User).count()
+    # Only count users who have at least one activity (i.e., have signed in and done something)
+    active_user_ids = db.query(UserActivity.user_id).distinct()
+    total_users = db.query(User).filter(User.id.in_(active_user_ids)).count()
     return {"totalStudents": total_users}
 
 def update_user_progress(db, user_id, subject_id):
@@ -2252,3 +2292,178 @@ def create_admin_user(user_data: dict, admin_user: User = Depends(get_current_ad
     initialize_user_quiz_progress(db, new_admin.id)
     
     return {"message": "Admin user created successfully", "user": {"id": new_admin.id, "email": new_admin.email, "name": new_admin.name}}
+
+@app.post("/admin/repair-user-stats")
+def admin_repair_user_stats(admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    repaired = 0
+    for user in users:
+        quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
+        # Build a lookup for quick access
+        qp_lookup = {(qp.subject_id, qp.level_id): qp for qp in quiz_progress_list}
+        for subject in SUBJECTS:
+            for level in subject["levels"]:
+                key = (subject["id"], level["id"])
+                qp = qp_lookup.get(key)
+                # If quiz progress exists and is completed, ensure activity exists
+                if qp and qp.completed == 1:
+                    # Check for activity
+                    activity = db.query(UserActivity).filter_by(
+                        user_id=user.id,
+                        subject_id=subject["id"],
+                        level_id=level["id"]
+                    ).first()
+                    if not activity:
+                        # Only create activity if a score is available (from another activity)
+                        score_activity = db.query(UserActivity).filter_by(
+                            user_id=user.id,
+                            subject_id=subject["id"],
+                            level_id=level["id"]
+                        ).filter(UserActivity.score != None).first()
+                        if score_activity:
+                            log_user_activity(db, user.id, subject["id"], level["id"], f"Completed Quiz: {level['name']}", score_activity.score)
+                # If quiz progress does not exist but should (e.g., user has activity), create it
+                elif not qp:
+                    # Check for activity
+                    activity = db.query(UserActivity).filter_by(
+                        user_id=user.id,
+                        subject_id=subject["id"],
+                        level_id=level["id"]
+                    ).first()
+                    if activity:
+                        quiz_progress = UserQuizProgress(
+                            user_id=user.id,
+                            subject_id=subject["id"],
+                            level_id=level["id"],
+                            completed=1,
+                        )
+                        db.add(quiz_progress)
+                        db.commit()
+                # Optionally, you could also check for missing UserProgress and update
+            # Update UserProgress for this subject
+            update_user_progress(db, user.id, subject["id"])
+        repaired += 1
+    return {"status": "repaired", "users": repaired}
+
+@app.post("/admin/reset-user-progress/{user_id}")
+def admin_reset_user_progress(user_id: int, admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Delete user's progress, activities, and goals
+    db.query(UserProgress).filter(UserProgress.user_id == user_id).delete()
+    db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user_id).delete()
+    db.query(UserActivity).filter(UserActivity.user_id == user_id).delete()
+    db.query(UserGoal).filter(UserGoal.user_id == user_id).delete()
+    db.commit()
+    # Re-initialize progress for the user
+    initialize_user_progress(db, user_id)
+    initialize_user_quiz_progress(db, user_id)
+    return {"message": "User progress and goals reset successfully"}
+
+# --- API: Add User Goal ---
+@app.post("/user/goals")
+def add_user_goal(goal: dict = Body(...), token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    email: str = payload.get("sub")
+    user = get_user(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_goal = UserGoal(
+        user_id=user.id,
+        type=goal.get("type"),
+        target=goal.get("target"),
+        deadline=goal.get("deadline"),
+        description=goal.get("description"),
+        created_at=datetime.utcnow().isoformat(),
+    )
+    db.add(new_goal)
+    db.commit()
+    db.refresh(new_goal)
+    return {"message": "Goal saved", "goal": {
+        "id": new_goal.id,
+        "type": new_goal.type,
+        "target": new_goal.target,
+        "deadline": new_goal.deadline,
+        "description": new_goal.description,
+        "created_at": new_goal.created_at,
+    }}
+
+# --- API: Get User Goals ---
+@app.get("/user/goals")
+def get_user_goals(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    email: str = payload.get("sub")
+    user = get_user(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    goals = db.query(UserGoal).filter_by(user_id=user.id).order_by(UserGoal.created_at.desc()).all()
+    return [{
+        "id": g.id,
+        "type": g.type,
+        "target": g.target,
+        "deadline": g.deadline,
+        "description": g.description,
+        "created_at": g.created_at,
+    } for g in goals]
+
+# --- API: Send Challenge to Friend ---
+@app.post("/user/challenge")
+def send_challenge(data: dict = Body(...), token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    email: str = payload.get("sub")
+    user = get_user(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    challenge = UserChallenge(
+        sender_id=user.id,
+        recipient_email=data.get("friendEmail"),
+        message=data.get("message"),
+        quiz_type=data.get("quizType"),
+        created_at=datetime.utcnow().isoformat(),
+    )
+    db.add(challenge)
+    db.commit()
+    # --- Email sending placeholder ---
+    # You can configure SMTP here. For now, just a placeholder.
+    # try:
+    #     msg = MIMEText(f"You've been challenged by {user.email}! Message: {data.get('message')}")
+    #     msg['Subject'] = 'You have a new quiz challenge!'
+    #     msg['From'] = 'noreply@yourapp.com'
+    #     msg['To'] = data.get('friendEmail')
+    #     s = smtplib.SMTP('localhost')
+    #     s.send_message(msg)
+    #     s.quit()
+    # except Exception as e:
+    #     print('Email send failed:', e)
+    return {"message": "Challenge sent! (Email sending placeholder)", "challenge": {
+        "id": challenge.id,
+        "recipient_email": challenge.recipient_email,
+        "message": challenge.message,
+        "quiz_type": challenge.quiz_type,
+        "created_at": challenge.created_at,
+    }}
+
+# --- API: Get Challenges for User (by email) ---
+@app.get("/user/challenges")
+def get_user_challenges(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    email: str = payload.get("sub")
+    user = get_user(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    challenges = db.query(UserChallenge).filter_by(recipient_email=user.email).order_by(UserChallenge.created_at.desc()).all()
+    return [{
+        "id": c.id,
+        "sender_id": c.sender_id,
+        "recipient_email": c.recipient_email,
+        "message": c.message,
+        "quiz_type": c.quiz_type,
+        "created_at": c.created_at,
+    } for c in challenges]
+
+@app.post("/admin/cleanup-null-activity")
+def admin_cleanup_null_activity(admin_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    deleted = db.query(UserActivity).filter(UserActivity.score == None).delete()
+    db.commit()
+    return {"deleted": deleted, "message": "Removed UserActivity records with null score."}

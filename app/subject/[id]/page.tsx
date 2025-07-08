@@ -208,10 +208,12 @@ export default function SubjectPage() {
                 let actionButton = null;
                 if (level.completed) {
                   actionButton = (
-                    <Button variant="outline" size="sm">
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Review
-                    </Button>
+                    <Link href={`/quiz/${subject.id}/${level.id}`}>
+                      <Button variant="outline" size="sm">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Review
+                      </Button>
+                    </Link>
                   );
                 } else if (level.unlocked) {
                   actionButton = (

@@ -25,7 +25,7 @@ import { Trophy, Medal, Award, TrendingUp, Users, Target, ArrowLeft, Code, Crown
 // Import Next.js routing components
 import Link from "next/link"
 // Import API functions for leaderboard data
-import { getLeaderboard, getUserStats, getTotalStudents } from "@/lib/api"
+import { getLeaderboard, getUserStats, getTotalStudents, saveUserGoal, getUserGoals, sendChallenge, getUserChallenges } from "@/lib/api"
 
 export default function LeaderboardPage() {
   // State management for leaderboard data
@@ -51,6 +51,9 @@ export default function LeaderboardPage() {
     quizType: ""
   }) // Form data for friend challenges
 
+  const [goals, setGoals] = useState<any[]>([])
+  const [challenges, setChallenges] = useState<any[]>([])
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
@@ -60,11 +63,17 @@ export default function LeaderboardPage() {
         setLeaderboard(leaderboardRes.data)
 
         // Get user stats (if user is logged in)
-        const token = localStorage.getItem("token")
+        const token = localStorage.getItem("authToken")
         if (token) {
           try {
             const statsRes = await getUserStats(token)
             setUserStats(statsRes)
+            // Fetch user goals
+            const goalsRes = await getUserGoals(token)
+            setGoals(goalsRes)
+            // Fetch received challenges
+            const challengesRes = await getUserChallenges(token)
+            setChallenges(challengesRes)
           } catch (err) {
             console.log("User not logged in or stats not available")
           }
@@ -109,39 +118,47 @@ export default function LeaderboardPage() {
     }
   }
 
-  const handleSetGoal = () => {
-    // Validate form
+  const handleSetGoal = async () => {
     if (!goalData.type || !goalData.target || !goalData.deadline) {
       alert("Please fill in all required fields")
       return
     }
-
-    // In a real app, this would save to backend
-    console.log("Setting goal:", goalData)
-    alert(`Goal set successfully! You want to ${goalData.type} ${goalData.target} by ${goalData.deadline}`)
-    setShowGoalsModal(false)
-    setGoalData({ type: "", target: "", deadline: "", description: "" })
+    try {
+      const token = localStorage.getItem("authToken")
+      if (!token) throw new Error("Not authenticated")
+      await saveUserGoal(goalData, token)
+      // Refetch goals
+      const goalsRes = await getUserGoals(token)
+      setGoals(goalsRes)
+      alert("Goal set successfully!")
+      setShowGoalsModal(false)
+      setGoalData({ type: "", target: "", deadline: "", description: "" })
+    } catch (err: any) {
+      alert(err.message || "Failed to save goal")
+    }
   }
 
-  const handleChallengeFriend = () => {
-    // Validate form
+  const handleChallengeFriend = async () => {
     if (!challengeData.friendEmail || !challengeData.quizType) {
       alert("Please fill in all required fields")
       return
     }
-
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(challengeData.friendEmail)) {
       alert("Please enter a valid email address")
       return
     }
-
-    // In a real app, this would send challenge to backend
-    console.log("Challenging friend:", challengeData)
-    alert(`Challenge sent to ${challengeData.friendEmail}! They'll be notified of your challenge.`)
-    setShowChallengeModal(false)
-    setChallengeData({ friendEmail: "", message: "", quizType: "" })
+    try {
+      const token = localStorage.getItem("authToken")
+      if (!token) throw new Error("Not authenticated")
+      await sendChallenge(challengeData, token)
+      alert(`Challenge sent to ${challengeData.friendEmail}!`)
+      setShowChallengeModal(false)
+      setChallengeData({ friendEmail: "", message: "", quizType: "" })
+    } catch (err: any) {
+      alert(err.message || "Failed to send challenge")
+    }
   }
 
   return (
@@ -294,26 +311,35 @@ export default function LeaderboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-center">
-                  {userStats ? (
+                  {loading ? (
+                    <div className="text-slate-200 animate-pulse h-32 flex flex-col items-center justify-center">
+                      <div className="w-16 h-8 bg-slate-200 rounded mb-2" />
+                      <div className="w-32 h-4 bg-slate-200 rounded mb-2" />
+                      <div className="w-40 h-4 bg-slate-200 rounded mb-1" />
+                      <div className="w-40 h-4 bg-slate-200 rounded mb-1" />
+                      <div className="w-40 h-4 bg-slate-200 rounded mb-1" />
+                      <div className="w-40 h-4 bg-slate-200 rounded mb-1" />
+                    </div>
+                  ) : userStats ? (
                     <>
                       <div className="text-3xl font-bold mb-2">#{userStats.rank}</div>
                       <p className="text-blue-100 mb-4">out of {totalStudents.toLocaleString()} students</p>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-blue-100">Total Points:</span>
-                          <span className="font-medium">{userStats.totalPoints?.toLocaleString() || 0}</span>
+                          <span className="font-medium">{userStats.totalPoints?.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Quizzes Completed:</span>
-                          <span className="font-medium">{userStats.totalCompleted || 0}</span>
+                          <span className="font-medium">{userStats.totalCompleted}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Average Score:</span>
-                          <span className="font-medium">{userStats.avgScore || 0}%</span>
+                          <span className="font-medium">{userStats.avgScore}%</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Current Streak:</span>
-                          <span className="font-medium">{userStats.streak || 0} days</span>
+                          <span className="font-medium">{userStats.streak} days</span>
                         </div>
                       </div>
                     </>
@@ -324,19 +350,19 @@ export default function LeaderboardPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-blue-100">Total Points:</span>
-                          <span className="font-medium">0</span>
+                          <span className="font-medium">-</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Quizzes Completed:</span>
-                          <span className="font-medium">0</span>
+                          <span className="font-medium">-</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Average Score:</span>
-                          <span className="font-medium">0%</span>
+                          <span className="font-medium">-</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-blue-100">Current Streak:</span>
-                          <span className="font-medium">0 days</span>
+                          <span className="font-medium">-</span>
                         </div>
                       </div>
                     </>
@@ -510,6 +536,46 @@ export default function LeaderboardPage() {
                 </Dialog>
               </CardContent>
             </Card>
+
+            {/* Display saved goals */}
+            {goals.length > 0 && (
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle>Your Goals</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {goals.map((goal) => (
+                      <li key={goal.id} className="p-2 rounded bg-blue-50">
+                        <div className="font-medium">{goal.type} {goal.target} by {goal.deadline}</div>
+                        <div className="text-xs text-slate-600">{goal.description}</div>
+                        <div className="text-xs text-slate-400">Set on {goal.created_at?.slice(0, 10)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Display received challenges */}
+            {challenges.length > 0 && (
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle>Challenges Received</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {challenges.map((challenge) => (
+                      <li key={challenge.id} className="p-2 rounded bg-purple-50">
+                        <div className="font-medium">From: {challenge.sender_id} | Quiz: {challenge.quiz_type}</div>
+                        <div className="text-xs text-slate-600">{challenge.message}</div>
+                        <div className="text-xs text-slate-400">Received: {challenge.created_at?.slice(0, 10)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

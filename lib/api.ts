@@ -227,6 +227,64 @@ export async function getTotalStudents() {
     return res.json();
 }
 
+/**
+ * Save a user goal
+ * @param goal - Goal data
+ * @param token - JWT access token
+ * @returns Promise with saved goal
+ */
+export async function saveUserGoal(goal: any, token: string) {
+    const res = await fetch(`${API_URL}/user/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(goal),
+    });
+    if (!res.ok) throw new Error("Failed to save goal");
+    return res.json();
+}
+
+/**
+ * Fetch user goals
+ * @param token - JWT access token
+ * @returns Promise with user goals
+ */
+export async function getUserGoals(token: string) {
+    const res = await fetch(`${API_URL}/user/goals`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch goals");
+    return res.json();
+}
+
+/**
+ * Send a challenge to a friend
+ * @param challenge - Challenge data
+ * @param token - JWT access token
+ * @returns Promise with challenge info
+ */
+export async function sendChallenge(challenge: any, token: string) {
+    const res = await fetch(`${API_URL}/user/challenge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(challenge),
+    });
+    if (!res.ok) throw new Error("Failed to send challenge");
+    return res.json();
+}
+
+/**
+ * Fetch challenges for the current user
+ * @param token - JWT access token
+ * @returns Promise with challenges
+ */
+export async function getUserChallenges(token: string) {
+    const res = await fetch(`${API_URL}/user/challenges`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch challenges");
+    return res.json();
+}
+
 // =============================================================================
 // ADMIN API FUNCTIONS
 // =============================================================================
@@ -319,5 +377,20 @@ export async function addLevel(data: any, token: string) {
         body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to add level");
+    return res.json();
+}
+
+/**
+ * Reset a user's progress (admin only)
+ * @param userId - User ID to reset
+ * @param token - JWT access token (must be admin)
+ * @returns Promise with reset status
+ */
+export async function resetUserProgress(userId: number, token: string) {
+    const res = await fetch(`${API_URL}/admin/reset-user-progress/${userId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to reset user progress");
     return res.json();
 } 

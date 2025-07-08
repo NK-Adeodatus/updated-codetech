@@ -79,13 +79,13 @@ A modern, interactive learning platform built with Next.js, FastAPI, and SQLite.
 The system comes with pre-configured demo accounts:
 
 #### Admin Account
-- **Email**: `AdminIbra@gmail.com`
-- **Password**: `IbraGold@1`
+- **Email**: `Admin account`
+- **Password**: `password`
 - **Role**: Admin (full access to all features)
 
 #### Student Account
-- **Email**: `student@alu.edu`
-- **Password**: `password123`
+- **Email**: `your email`
+- **Password**: `your password`
 - **Role**: Student (learning features only)
 
 ### User Roles

@@ -127,7 +127,6 @@ export default function QuizPage() {
       const token = localStorage.getItem("authToken")
       if (token) {
         await submitQuiz(subjectId, levelId, answers, token)
-        await completeQuizLevel(subjectId, levelId, token)
         // Redirect to subject page to refresh progress
         router.push(`/subject/${subjectId}`)
       }
