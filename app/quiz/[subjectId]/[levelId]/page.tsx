@@ -110,6 +110,8 @@ export default function QuizPage() {
           }
         })
         setScore(Math.round((correctCount / currentQuiz.questions.length) * 100)) // Calculate percentage
+        // Call handleQuizComplete to save progress in backend
+        handleQuizComplete();
       }
     }
   }

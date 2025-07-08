@@ -80,6 +80,22 @@ export default function SubjectPage() {
     )
   }
 
+  // Calculate currentLevel and totalLevels for display
+  let currentLevel = 1;
+  let totalLevels = subject?.levels?.length || 1;
+  if (subject && Array.isArray(subject.levels)) {
+    for (let i = 0; i < subject.levels.length; i++) {
+      if (subject.levels[i].current) {
+        currentLevel = i + 1;
+        break;
+      }
+      // If all completed, show last as current
+      if (i === subject.levels.length - 1) {
+        currentLevel = subject.levels.length;
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Header */}
@@ -137,7 +153,7 @@ export default function SubjectPage() {
             <CardContent className="p-6 text-center">
               <Trophy className="w-8 h-8 text-purple-600 mx-auto mb-3" />
               <div className="text-2xl font-bold text-slate-900 mb-1">
-                {subject.currentLevel}/{subject.totalLevels}
+                {currentLevel}/{totalLevels}
               </div>
               <div className="text-sm text-slate-600">Current Level</div>
             </CardContent>
@@ -169,7 +185,7 @@ export default function SubjectPage() {
               <Progress value={subject.progress} className="h-3" />
               <div className="flex justify-between text-sm text-slate-600">
                 <span>
-                  Level {subject.currentLevel} of {subject.totalLevels}
+                  Level {currentLevel} of {totalLevels}
                 </span>
                 <span>
                   {subject.completedQuizzes} of {subject.totalQuizzes} quizzes completed
