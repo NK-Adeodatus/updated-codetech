@@ -8,7 +8,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Body, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
@@ -32,10 +32,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expiration time
 # =============================================================================
 # DATABASE SETUP
 # =============================================================================
-# SQLite database configuration and connection setup
-DATABASE_URL = "sqlite:///./users.db"  # Local SQLite database file
+# MySQL database configuration and connection setup
+DATABASE_URL = "mysql+mysqlconnector://myappuser:adeodatus@localhost/codetech_db"  # MySQL database
 Base = declarative_base()  # SQLAlchemy base class for models
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})  # Database engine
+engine = create_engine(DATABASE_URL)  # Database engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)  # Database session factory
 
 # =============================================================================
@@ -51,6 +51,8 @@ class User(Base):
     hashed_password = Column(String)  # Encrypted password
     name = Column(String, default="")  # User's display name
     role = Column(String, default="user")  # User role: "user" or "admin"
+    profile_picture = Column(String, nullable=True)  # Optional profile picture
+    bio = Column(String, nullable=True)  # Optional bio
 
 class UserProgress(Base):
     """User progress model - tracks overall progress per subject"""
@@ -109,8 +111,49 @@ class UserChallenge(Base):
     created_at = Column(String, default=datetime.utcnow().isoformat)
     user = relationship("User", foreign_keys=[sender_id])
 
+# --- Add SQLAlchemy models for Subject, Level, Quiz, Question, Choice ---
+class Subject(Base):
+    __tablename__ = "subjects"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    levels = relationship("Level", back_populates="subject")
+
+class Level(Base):
+    __tablename__ = "levels"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    subject = relationship("Subject", back_populates="levels")
+    quizzes = relationship("Quiz", back_populates="level")
+
+class Quiz(Base):
+    __tablename__ = "quizzes"
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    level_id = Column(Integer, ForeignKey("levels.id"))
+    title = Column(String(255), nullable=False)
+    level = relationship("Level", back_populates="quizzes")
+    questions = relationship("Question", back_populates="quiz")
+
+class Question(Base):
+    __tablename__ = "questions"
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("quizzes.id"))
+    text = Column(Text, nullable=False)
+    quiz = relationship("Quiz", back_populates="questions")
+    choices = relationship("Choice", back_populates="question")
+
+class Choice(Base):
+    __tablename__ = "choices"
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("questions.id"))
+    text = Column(Text, nullable=False)
+    is_correct = Column(Boolean, default=False)
+    question = relationship("Question", back_populates="choices")
+
 # Create all database tables based on the models defined above
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 # =============================================================================
 # AUTHENTICATION UTILITIES
@@ -1809,24 +1852,36 @@ def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get
 
 # --- Quiz Endpoints ---
 @app.get("/quiz/{subject_id}/{level_id}")
-def get_quiz(subject_id: int, level_id: int):
-    subject = QUIZ_DATA.get(subject_id, {})
-    quiz = subject.get(level_id)
+def get_quiz(subject_id: int, level_id: int, db: Session = Depends(get_db)):
+    quiz = db.query(Quiz).filter_by(subject_id=subject_id, level_id=level_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-    # Include correct answers for learning purposes
-    return {"title": quiz["title"], "description": quiz["description"], "questions": quiz["questions"]}
+    questions = db.query(Question).filter_by(quiz_id=quiz.id).all()
+    question_list = []
+    for question in questions:
+        choices = db.query(Choice).filter_by(question_id=question.id).all()
+        question_list.append({
+            "id": question.id,
+            "question": question.text,
+            "options": [choice.text for choice in choices],
+            "correct": next((choice.text for choice in choices if choice.is_correct), None),
+            "explanation": None,  # Add if you have an explanation field
+            "resources": [],      # Add if you have resources
+        })
+    return {"title": quiz.title, "questions": question_list}
 
 @app.post("/quiz/{subject_id}/{level_id}/submit")
 def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(...), db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
-    subject = QUIZ_DATA.get(subject_id, {})
-    quiz = subject.get(level_id)
+    quiz = db.query(Quiz).filter_by(subject_id=subject_id, level_id=level_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    questions = db.query(Question).filter_by(quiz_id=quiz.id).all()
     correct = 0
-    total = len(quiz["questions"])
-    for q in quiz["questions"]:
-        if answers.get(q["id"]) == q["correct"]:
+    total = len(questions)
+    for question in questions:
+        choices = db.query(Choice).filter_by(question_id=question.id).all()
+        correct_choice = next((choice.text for choice in choices if choice.is_correct), None)
+        if answers.get(question.id) == correct_choice:
             correct += 1
     score = int((correct / total) * 100) if total else 0
     # Mark quiz as completed for user
@@ -1855,7 +1910,7 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
             pass
     # Log activity
     if user_id:
-        log_user_activity(db, user_id, subject_id, level_id, f"Completed Quiz: {quiz['title']}", score)
+        log_user_activity(db, user_id, subject_id, level_id, f"Completed Quiz: {quiz.title}", score)
     return {"score": score, "correct": correct, "total": total}
 
 # --- Leaderboard Endpoint ---
@@ -2076,7 +2131,7 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
     scores = [a.score for a in activities if a.score is not None and a.action.startswith("Completed Quiz")]
     avg_score = int(sum(scores) / len(scores)) if scores else 0
     # Streak: count consecutive days with activity
-    days = set(a.timestamp[:10] for a in activities)
+    days = set(a.timestamp.strftime("%Y-%m-%d") for a in activities)
     today = datetime.utcnow().date()
     streak = 0
     for i in range(0, 100):
