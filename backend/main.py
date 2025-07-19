@@ -33,7 +33,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expiration time
 # DATABASE SETUP
 # =============================================================================
 # MySQL database configuration and connection setup
-DATABASE_URL = "mysql+mysqlconnector://myappuser:adeodatus@localhost/codetech_db"  # MySQL database
+DATABASE_URL = "mysql+mysqlconnector://root:adeodatus@localhost/codetech_db"  # MySQL database
 Base = declarative_base()  # SQLAlchemy base class for models
 engine = create_engine(DATABASE_URL)  # Database engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)  # Database session factory

@@ -1,9 +1,8 @@
 import mysql.connector
-from seed_main import seed_database
 
 # --- CONFIGURE THESE ---
 MYSQL_HOST = 'localhost'
-MYSQL_USER = 'myappuser'  # or your MySQL user
+MYSQL_USER = 'root'  # or your MySQL user
 MYSQL_PASSWORD = 'adeodatus'
 DB_NAME = 'codetech_db'
 # -----------------------
@@ -38,6 +37,8 @@ def create_tables(cursor):
     CREATE TABLE IF NOT EXISTS levels (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        description TEXT,
+        level_number INT,
         subject_id INT,
         FOREIGN KEY (subject_id) REFERENCES subjects(id)
     )
@@ -132,13 +133,22 @@ def main():
     create_database(cursor)
     conn.database = DB_NAME
     create_tables(cursor)
-    # Seed initial data
-    # seed_database(conn)
     cursor.execute("SHOW TABLES")
     print("Tables in database:", cursor.fetchall())
     cursor.close()
     conn.close()
     print("Database and schema setup complete!")
+
+    # Now seed the database
+    from seed_main import seed_database
+    conn = mysql.connector.connect(
+        host=MYSQL_HOST,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=DB_NAME
+    )
+    seed_database(conn)
+    conn.close()
 
 if __name__ == "__main__":
     main() 
