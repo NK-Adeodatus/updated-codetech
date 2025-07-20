@@ -2029,26 +2029,32 @@ def complete_quiz_level(subject_id: int, level_id: int, db: Session = Depends(ge
 # --- Helper: Initialize Progress for New User ---
 def initialize_user_progress(db, user_id):
     for subject in SUBJECTS:
+        # Dynamically count quizzes for this subject from the database
+        quiz_count = db.query(Quiz).filter(Quiz.subject_id == subject["id"]).count()
         progress = UserProgress(
             user_id=user_id,
             subject_id=subject["id"],
             progress=0,
             completed_quizzes=0,
-            total_quizzes=subject["totalQuizzes"],
+            total_quizzes=quiz_count,
         )
         db.add(progress)
     db.commit()
 
 # --- Helper: Initialize Quiz Progress for New User ---
 def initialize_user_quiz_progress(db, user_id):
-    for subject in SUBJECTS:
-        for level in subject["levels"]:
-            quiz_progress = db.query(UserQuizProgress).filter_by(user_id=user_id, subject_id=subject["id"], level_id=level["id"]).first()
+    subjects = db.query(Subject).all()
+    for subject in subjects:
+        levels = db.query(Level).filter(Level.subject_id == subject.id).all()
+        for level in levels:
+            quiz_progress = db.query(UserQuizProgress).filter_by(
+                user_id=user_id, subject_id=subject.id, level_id=level.id
+            ).first()
             if not quiz_progress:
                 quiz_progress = UserQuizProgress(
                     user_id=user_id,
-                    subject_id=subject["id"],
-                    level_id=level["id"],
+                    subject_id=subject.id,
+                    level_id=level.id,
                     completed=0,
                 )
                 db.add(quiz_progress)

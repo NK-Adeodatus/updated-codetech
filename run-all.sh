@@ -1,10 +1,10 @@
 #!/bin/zsh
 
-# Ensure the database and tables exist
-python3 backend/init_db.py
+# Activate the virtual environment
+source backend/venv/bin/activate
 
 # Start backend in the background
-(cd backend && source venv/bin/activate && uvicorn main:app --reload) &
+(cd backend && uvicorn main:app --reload) &
 
 # Start frontend in the background
 (npm run dev) & 

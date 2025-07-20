@@ -4,42 +4,58 @@
 // This is the main landing page that users see when they visit the application.
 // It displays different content for logged-in users vs guests.
 
-"use client"
+"use client";
 
 // Import React hooks for state management and side effects
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 // Import UI components from the design system
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 // Import icons from Lucide React
-import { BookOpen, Trophy, Users, TrendingUp, ArrowRight, Star, Code, Brain, Zap } from "lucide-react"
+import {
+  BookOpen,
+  Trophy,
+  Users,
+  TrendingUp,
+  ArrowRight,
+  Star,
+  Code,
+  Brain,
+  Zap,
+} from "lucide-react";
 // Import Next.js routing component
-import Link from "next/link"
+import Link from "next/link";
 // Import API function to get user's subjects
-import { getUserSubjects } from "@/lib/api"
+import { getUserSubjects } from "@/lib/api";
 
 export default function HomePage() {
   // State management for user authentication status
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   // State for storing user's subjects and progress data
-  const [subjects, setSubjects] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<any[]>([]);
   // Loading state for API calls
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true);
 
   // Effect hook that runs on component mount to check authentication and load data
   useEffect(() => {
     // Check if user is logged in by looking for auth token in localStorage
-    const token = localStorage.getItem("authToken")
-    setIsLoggedIn(!!token)
+    const token = localStorage.getItem("authToken");
+    setIsLoggedIn(!!token);
 
     if (token) {
       // If logged in, fetch user's subjects with progress from API
       getUserSubjects(token)
         .then((userSubjects) => setSubjects(userSubjects))
         .catch(() => setSubjects([]))
-        .finally(() => setLoading(false))
+        .finally(() => setLoading(false));
     } else {
       // If not logged in (guest), show all subjects with 0% progress for preview
       setSubjects([
@@ -83,18 +99,38 @@ export default function HomePage() {
           color: "bg-green-500",
           progress: 0,
         },
-      ])
-      setLoading(false)
+      ]);
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   // Static statistics data for the homepage stats section
   const stats = [
-    { label: "Active Students", value: "1,247", icon: Users, color: "text-blue-600" },
-    { label: "Quizzes Completed", value: "15,432", icon: BookOpen, color: "text-green-600" },
-    { label: "Average Score", value: "78%", icon: TrendingUp, color: "text-purple-600" },
-    { label: "Top Performers", value: "156", icon: Trophy, color: "text-yellow-600" },
-  ]
+    {
+      label: "Active Students",
+      value: "1,247",
+      icon: Users,
+      color: "text-blue-600",
+    },
+    {
+      label: "Quizzes Completed",
+      value: "15,432",
+      icon: BookOpen,
+      color: "text-green-600",
+    },
+    {
+      label: "Average Score",
+      value: "78%",
+      icon: TrendingUp,
+      color: "text-purple-600",
+    },
+    {
+      label: "Top Performers",
+      value: "156",
+      icon: Trophy,
+      color: "text-yellow-600",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
@@ -110,7 +146,9 @@ export default function HomePage() {
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   CodeTech
                 </h1>
-                <p className="text-sm text-slate-600">Interactive Learning Platform</p>
+                <p className="text-sm text-slate-600">
+                  Interactive Learning Platform
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -154,8 +192,9 @@ export default function HomePage() {
               <span className="block text-blue-600">Interactive Quizzes</span>
             </h1>
             <p className="text-xl text-slate-600 mb-8 leading-relaxed">
-              Bridge the gap between theory and practice with our comprehensive quiz platform. Build strong theoretical
-              foundations in Python, Machine Learning, JavaScript, and more.
+              Bridge the gap between theory and practice with our comprehensive
+              quiz platform. Build strong theoretical foundations in Python,
+              Machine Learning, JavaScript, and more.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {isLoggedIn ? (
@@ -189,7 +228,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Stats Section
       <section className="py-16 px-4 bg-white/50">
         <div className="container mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -204,15 +243,18 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Subjects Preview */}
       <section className="py-20 px-4">
         <div className="container mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4 text-slate-900">Available Subjects</h2>
+            <h2 className="text-4xl font-bold mb-4 text-slate-900">
+              Available Subjects
+            </h2>
             <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-              Choose from our comprehensive collection of technical subjects, each with structured learning paths
+              Choose from our comprehensive collection of technical subjects,
+              each with structured learning paths
             </p>
           </div>
 
@@ -229,17 +271,24 @@ export default function HomePage() {
                     {subject.icon}
                   </div>
                   <CardTitle className="text-lg">{subject.name}</CardTitle>
-                  <CardDescription className="text-sm">{subject.description}</CardDescription>
+                  <CardDescription className="text-sm">
+                    {subject.description}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
+                    {/* <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Progress</span>
                       <span className="font-medium">{subject.progress}%</span>
                     </div>
-                    <Progress value={subject.progress} className="h-2" />
+                    <Progress value={subject.progress} className="h-2" /> */}
                     <div className="flex justify-between text-sm text-slate-600">
-                      <span>{Array.isArray(subject.levels) ? subject.levels.length : subject.levels} Levels</span>
+                      <span>
+                        {Array.isArray(subject.levels)
+                          ? subject.levels.length
+                          : subject.levels}{" "}
+                        Levels
+                      </span>
                       <span>{subject.totalQuizzes} Quizzes</span>
                     </div>
                   </div>
@@ -262,29 +311,39 @@ export default function HomePage() {
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold mb-4">Why Choose CodeTech?</h2>
             <p className="text-xl opacity-90 max-w-2xl mx-auto">
-              Our platform is designed to enhance your theoretical understanding through interactive learning
+              Our platform is designed to enhance your theoretical understanding
+              through interactive learning
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
               <Brain className="w-12 h-12 mx-auto mb-4 opacity-90" />
-              <h3 className="text-xl font-semibold mb-3">Structured Learning</h3>
+              <h3 className="text-xl font-semibold mb-3">
+                Structured Learning
+              </h3>
               <p className="opacity-80">
-                Progress through carefully designed levels that build upon each other for comprehensive understanding
+                Progress through carefully designed levels that build upon each
+                other for comprehensive understanding
               </p>
             </div>
             <div className="text-center">
               <Zap className="w-12 h-12 mx-auto mb-4 opacity-90" />
               <h3 className="text-xl font-semibold mb-3">Instant Feedback</h3>
               <p className="opacity-80">
-                Get immediate results with detailed explanations and additional resources for failed questions
+                Get immediate results with detailed explanations and additional
+                resources for failed questions
               </p>
             </div>
             <div className="text-center">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-90" />
-              <h3 className="text-xl font-semibold mb-3">Competitive Learning</h3>
-              <p className="opacity-80">Track your progress on leaderboards and compete with peers to stay motivated</p>
+              <h3 className="text-xl font-semibold mb-3">
+                Competitive Learning
+              </h3>
+              <p className="opacity-80">
+                Track your progress on leaderboards and compete with peers to
+                stay motivated
+              </p>
             </div>
           </div>
         </div>
@@ -302,7 +361,8 @@ export default function HomePage() {
                 <h3 className="text-xl font-bold">CodeTech</h3>
               </div>
               <p className="text-slate-400">
-                Enhancing theoretical knowledge acquisition for technical students at ALU.
+                Enhancing theoretical knowledge acquisition for technical
+                students at ALU.
               </p>
             </div>
             <div>
@@ -336,10 +396,12 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-8 pt-8 text-center text-slate-400">
-            <p>&copy; 2024 CodeTech. Built by ALU Software Engineering Students.</p>
+            <p>
+              &copy; 2024 CodeTech. Built by ALU Software Engineering Students.
+            </p>
           </div>
         </div>
       </footer>
     </div>
-  )
+  );
 }
