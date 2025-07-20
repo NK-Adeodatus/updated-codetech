@@ -1883,6 +1883,7 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
         correct_choice = next((choice.text for choice in choices if choice.is_correct), None)
         if answers.get(question.id) == correct_choice:
             correct += 1
+        print(f"QID: {question.id}, correct_choice: {correct_choice}, user_answer: {answers.get(question.id)}")
     score = int((correct / total) * 100) if total else 0
     # Mark quiz as completed for user
     user_id = None
@@ -1911,6 +1912,8 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
     # Log activity
     if user_id:
         log_user_activity(db, user_id, subject_id, level_id, f"Completed Quiz: {quiz.title}", score)
+    print("Submitting quiz: correct =", correct, "total =", total, "score =", score)
+    print("Received answers:", answers)
     return {"score": score, "correct": correct, "total": total}
 
 # --- Leaderboard Endpoint ---
