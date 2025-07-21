@@ -48,12 +48,18 @@ import {
   getUserStats,
 } from "@/lib/api";
 
-// Mapping of icon names to their React components for dynamic rendering
-const iconMap: Record<string, React.ElementType> = {
-  BookOpen,
-  Target,
-  TrendingUp,
-  Trophy,
+// Icon and color mapping for subjects by ID
+const iconMap: Record<number, string> = {
+  1: "🐍", // Python Programming
+  2: "🤖", // Machine Learning
+  3: "⚡", // JavaScript
+  4: "⚙️", // C Programming
+};
+const colorMap: Record<number, string> = {
+  1: "bg-blue-500",
+  2: "bg-purple-500",
+  3: "bg-yellow-500",
+  4: "bg-green-500",
 };
 
 export default function DashboardPage() {
@@ -291,7 +297,7 @@ export default function DashboardPage() {
                               {subject.name}
                             </h3>
                             <p className="text-sm text-slate-600">
-                              Level {subject.currentLevel} of{" "}
+                              Level {subject.currentLevel} out of{" "}
                               {subject.totalLevels}
                             </p>
                           </div>
@@ -328,9 +334,11 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center space-x-3 mb-4">
                         <div
-                          className={`w-12 h-12 ${subject.color} rounded-lg flex items-center justify-center text-2xl`}
+                          className={`w-12 h-12 ${
+                            colorMap[subject.id] || "bg-slate-300"
+                          } rounded-lg flex items-center justify-center text-2xl`}
                         >
-                          {subject.icon}
+                          {iconMap[subject.id] || "📚"}
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-slate-900">
@@ -358,7 +366,9 @@ export default function DashboardPage() {
                             Quizzes
                           </span>
                           <span>
-                            Level {subject.currentLevel}/{subject.totalLevels}
+                            {subject.completedQuizzes > 0
+                              ? `Level ${subject.currentLevel}/${subject.totalLevels}`
+                              : `Levels: ${subject.totalLevels}`}
                           </span>
                         </div>
                       </div>

@@ -123,6 +123,7 @@ class Level(Base):
     __tablename__ = "levels"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    description = Column(Text)  # <-- Add this line
     subject_id = Column(Integer, ForeignKey("subjects.id"))
     subject = relationship("Subject", back_populates="levels")
     quizzes = relationship("Quiz", back_populates="level")
@@ -151,6 +152,13 @@ class Choice(Base):
     text = Column(Text, nullable=False)
     is_correct = Column(Boolean, default=False)
     question = relationship("Question", back_populates="choices")
+
+class UserQuizCompletion(Base):
+    __tablename__ = "user_quiz_completion"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    quiz_id = Column(Integer, ForeignKey("quizzes.id"))
+    completed = Column(Boolean, default=False)
 
 # Create all database tables based on the models defined above
 # Base.metadata.create_all(bind=engine)
@@ -1885,7 +1893,6 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
             correct += 1
         print(f"QID: {question.id}, correct_choice: {correct_choice}, user_answer: {answers.get(question.id)}")
     score = int((correct / total) * 100) if total else 0
-    # Mark quiz as completed for user
     user_id = None
     if token:
         try:
@@ -1894,22 +1901,39 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
             user = get_user(db, email)
             if user:
                 user_id = user.id
-                quiz_progress = db.query(UserQuizProgress).filter_by(user_id=user.id, subject_id=subject_id, level_id=level_id).first()
-                if quiz_progress:
-                    quiz_progress.completed = 1
+                # Mark this quiz as completed for the user
+                quiz_completion = db.query(UserQuizCompletion).filter_by(user_id=user.id, quiz_id=quiz.id).first()
+                if not quiz_completion:
+                    quiz_completion = UserQuizCompletion(user_id=user.id, quiz_id=quiz.id, completed=True)
+                    db.add(quiz_completion)
                 else:
-                    quiz_progress = UserQuizProgress(
-                        user_id=user.id,
-                        subject_id=subject_id,
-                        level_id=level_id,
-                        completed=1,
-                    )
-                    db.add(quiz_progress)
+                    quiz_completion.completed = True
+                db.commit()
+                # Check if all quizzes in this level are completed
+                quizzes_in_level = db.query(Quiz).filter_by(subject_id=subject_id, level_id=level_id).all()
+                all_completed = all(
+                    db.query(UserQuizCompletion).filter_by(user_id=user.id, quiz_id=q.id, completed=True).first()
+                    for q in quizzes_in_level
+                )
+                quiz_progress = db.query(UserQuizProgress).filter_by(user_id=user.id, subject_id=subject_id, level_id=level_id).first()
+                if all_completed:
+                    if quiz_progress:
+                        quiz_progress.completed = 1
+                    else:
+                        quiz_progress = UserQuizProgress(
+                            user_id=user.id,
+                            subject_id=subject_id,
+                            level_id=level_id,
+                            completed=1,
+                        )
+                        db.add(quiz_progress)
+                else:
+                    if quiz_progress:
+                        quiz_progress.completed = 0
                 db.commit()
                 update_user_progress(db, user.id, subject_id)
         except Exception:
             pass
-    # Log activity
     if user_id:
         log_user_activity(db, user_id, subject_id, level_id, f"Completed Quiz: {quiz.title}", score)
     print("Submitting quiz: correct =", correct, "total =", total, "score =", score)
@@ -1974,43 +1998,53 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
+    subjects = db.query(Subject).all()
     result = []
-    for subject in SUBJECTS:
-        subj = subject.copy()
-        # Calculate completed quizzes as the sum of quizzes for completed levels
+    for subject in subjects:
+        subj = {
+            "id": subject.id,
+            "name": subject.name,
+            "description": subject.description,
+            "icon": getattr(subject, "icon", ""),
+            "color": getattr(subject, "color", ""),
+        }
+        levels = db.query(Level).filter(Level.subject_id == subject.id).all()
         completed_quizzes = 0
         total_quizzes = 0
-        for level in subject["levels"]:
-            total_quizzes += level.get("quizzes", 1)
-            qp = next((qp for qp in quiz_progress_list if qp.subject_id == subject["id"] and qp.level_id == level["id"]), None)
-            if qp and qp.completed == 1:
-                completed_quizzes += level.get("quizzes", 1)
-        subj["completedQuizzes"] = completed_quizzes
-        subj["totalQuizzes"] = total_quizzes
-        subj["progress"] = int((completed_quizzes / total_quizzes) * 100) if total_quizzes else 0
-        # Level progress and unlocks
-        levels = []
+        level_list = []
         prev_completed = True
         found_current = False
-        for i, level in enumerate(subject["levels"]):
-            qp = next(
-                (qp for qp in quiz_progress_list if qp.subject_id == subject["id"] and qp.level_id == level["id"]),
-                None,
-            )
+        for level in levels:
+            quizzes = db.query(Quiz).filter(Quiz.subject_id == subject.id, Quiz.level_id == level.id).all()
+            num_quizzes = len(quizzes)
+            total_quizzes += num_quizzes
+            estimated_time = num_quizzes * 5  # in minutes
+            qp = next((qp for qp in quiz_progress_list if qp.subject_id == subject.id and qp.level_id == level.id), None)
             completed = qp.completed == 1 if qp else False
-            unlocked = prev_completed if i > 0 else True
+            if completed:
+                completed_quizzes += num_quizzes
+            unlocked = prev_completed if level_list else True
             current = False
             if unlocked and not completed and not found_current:
                 current = True
                 found_current = True
-            levels.append({
-                **level,
+            level_list.append({
+                "id": level.id,
+                "name": level.name,
+                "description": getattr(level, "description", ""),
+                "quizzes": num_quizzes,
                 "completed": completed,
                 "unlocked": unlocked,
                 "current": current,
+                "estimatedTime": estimated_time,
             })
             prev_completed = completed
-        subj["levels"] = levels
+        subj["levels"] = level_list
+        subj["completedQuizzes"] = completed_quizzes
+        subj["totalQuizzes"] = total_quizzes
+        subj["progress"] = int((completed_quizzes / total_quizzes) * 100) if total_quizzes else 0
+        subj["totalLevels"] = len(level_list)
+        subj["currentLevel"] = next((i+1 for i, lvl in enumerate(level_list) if lvl["current"]), len(level_list))
         result.append(subj)
     return result
 
