@@ -4,6 +4,8 @@ Seed data and seeding function for initializing the database with important data
 Includes idempotency, transactions, and error handling.
 """
 
+import traceback
+
 print('seed_data.py run.')
 from seed_data.subjects.python_programming import subject_data as python_data
 from seed_data.subjects.machine_learning import subject_data as ml_data
@@ -106,6 +108,7 @@ def seed_database(conn):
     except Exception as e:
         conn.rollback()
         print("Error seeding database:", e)
+        traceback.print_exc()
     finally:
         cursor.close() 
 
@@ -140,7 +143,7 @@ def clear_all_tables(conn):
 
 conn = mysql.connector.connect(
     host='localhost',
-    user='myappuser',
+    user='root',
     password='adeodatus',
     database='codetech_db'
 )

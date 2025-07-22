@@ -5,53 +5,69 @@
 // Shows progress, levels, and learning path for the selected subject.
 // Includes authentication checks and progress tracking.
 
-"use client"
+"use client";
 
 // Import UI components from the design system
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 // Import icons from Lucide React
-import { ArrowLeft, Play, Lock, CheckCircle, BookOpen, Clock, Target, Trophy, Code } from "lucide-react"
+import {
+  ArrowLeft,
+  Play,
+  Lock,
+  CheckCircle,
+  BookOpen,
+  Clock,
+  Target,
+  Trophy,
+  Code,
+} from "lucide-react";
 // Import Next.js routing components
-import Link from "next/link"
-import { useRouter, useParams } from "next/navigation"
+import Link from "next/link";
+import { useRouter, useParams } from "next/navigation";
 // Import React hooks for state management and side effects
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 // Import API functions for subject data
-import { getUserSubjects, getSubject } from "@/lib/api"
+import { getUserSubjects, getSubject } from "@/lib/api";
 
 export default function SubjectPage() {
   // Get route parameters and router instance
-  const params = useParams()
-  const router = useRouter()
-  const subjectId = Number.parseInt(params.id as string) // Convert string ID to number
+  const params = useParams();
+  const router = useRouter();
+  const subjectId = Number.parseInt(params.id as string); // Convert string ID to number
 
   // State management for subject data
-  const [subject, setSubject] = useState<any>(null) // Current subject data
-  const [loading, setLoading] = useState(true) // Loading state for data fetching
-  const [error, setError] = useState("") // Error message state
+  const [subject, setSubject] = useState<any>(null); // Current subject data
+  const [loading, setLoading] = useState(true); // Loading state for data fetching
+  const [error, setError] = useState(""); // Error message state
 
   // Effect hook to load subject data when component mounts or subject ID changes
   useEffect(() => {
-    setLoading(true) // Show loading state
-    const token = localStorage.getItem("authToken")
+    setLoading(true); // Show loading state
+    const token = localStorage.getItem("authToken");
     if (!token) {
-      setError("Not authenticated") // Set error if no authentication token
-      setLoading(false)
-      return
+      setError("Not authenticated"); // Set error if no authentication token
+      setLoading(false);
+      return;
     }
     // Fetch user's subjects and find the specific subject
     getUserSubjects(token)
       .then((subjects) => {
-        const subj = subjects.find((s: any) => s.id === subjectId) // Find subject by ID
-        if (!subj) throw new Error() // Throw error if subject not found
-        setSubject(subj) // Set subject data in state
+        const subj = subjects.find((s: any) => s.id === subjectId); // Find subject by ID
+        if (!subj) throw new Error(); // Throw error if subject not found
+        setSubject(subj); // Set subject data in state
       })
       .catch(() => setError("Subject Not Found")) // Handle errors
-      .finally(() => setLoading(false)) // Hide loading state
-  }, [subjectId]) // Re-run when subject ID changes
+      .finally(() => setLoading(false)); // Hide loading state
+  }, [subjectId]); // Re-run when subject ID changes
 
   if (loading) {
     return (
@@ -64,20 +80,22 @@ export default function SubjectPage() {
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   if (!subject) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-4">{error || "Subject Not Found"}</h1>
+          <h1 className="text-2xl font-bold text-slate-900 mb-4">
+            {error || "Subject Not Found"}
+          </h1>
           <Link href="/dashboard">
             <Button>Back to Dashboard</Button>
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   // Calculate currentLevel and totalLevels for display
@@ -96,6 +114,23 @@ export default function SubjectPage() {
     }
   }
 
+  // Calculate total estimated time in minutes
+  const totalEstimatedMinutes = subject.levels.reduce(
+    (acc: number, level: any) => acc + (parseInt(level.estimatedTime, 10) || 0),
+    0
+  );
+  // Format as XhYmin, Xh, or Ymin
+  let formattedTime = "";
+  const hours = Math.floor(totalEstimatedMinutes / 60);
+  const minutes = totalEstimatedMinutes % 60;
+  if (hours > 0 && minutes > 0) {
+    formattedTime = `${hours}h${minutes}min`;
+  } else if (hours > 0) {
+    formattedTime = `${hours}h`;
+  } else {
+    formattedTime = `${minutes}min`;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Header */}
@@ -110,12 +145,18 @@ export default function SubjectPage() {
                 </Button>
               </Link>
               <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 ${subject.color} rounded-lg flex items-center justify-center text-2xl`}>
+                <div
+                  className={`w-10 h-10 ${subject.color} rounded-lg flex items-center justify-center text-2xl`}
+                >
                   {subject.icon}
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900">{subject.name}</h1>
-                  <p className="text-sm text-slate-600">{subject.description}</p>
+                  <h1 className="text-xl font-bold text-slate-900">
+                    {subject.name}
+                  </h1>
+                  <p className="text-sm text-slate-600">
+                    {subject.description}
+                  </p>
                 </div>
               </div>
             </div>
@@ -144,7 +185,9 @@ export default function SubjectPage() {
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardContent className="p-6 text-center">
               <Target className="w-8 h-8 text-green-600 mx-auto mb-3" />
-              <div className="text-2xl font-bold text-slate-900 mb-1">{subject.progress}%</div>
+              <div className="text-2xl font-bold text-slate-900 mb-1">
+                {subject.progress}%
+              </div>
               <div className="text-sm text-slate-600">Overall Progress</div>
             </CardContent>
           </Card>
@@ -163,7 +206,7 @@ export default function SubjectPage() {
             <CardContent className="p-6 text-center">
               <Clock className="w-8 h-8 text-yellow-600 mx-auto mb-3" />
               <div className="text-2xl font-bold text-slate-900 mb-1">
-                {subject.levels.reduce((acc: number, level: any) => acc + Number.parseInt(level.estimatedTime), 0)}h
+                {formattedTime}
               </div>
               <div className="text-sm text-slate-600">Total Time</div>
             </CardContent>
@@ -174,7 +217,9 @@ export default function SubjectPage() {
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-8">
           <CardHeader>
             <CardTitle>Learning Progress</CardTitle>
-            <CardDescription>Track your journey through {subject.name}</CardDescription>
+            <CardDescription>
+              Track your journey through {subject.name}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -188,7 +233,8 @@ export default function SubjectPage() {
                   Level {currentLevel} of {totalLevels}
                 </span>
                 <span>
-                  {subject.completedQuizzes} of {subject.totalQuizzes} quizzes completed
+                  {subject.completedQuizzes} of {subject.totalQuizzes} quizzes
+                  completed
                 </span>
               </div>
             </div>
@@ -199,7 +245,9 @@ export default function SubjectPage() {
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Learning Path</CardTitle>
-            <CardDescription>Complete levels in order to build your knowledge progressively</CardDescription>
+            <CardDescription>
+              Complete levels in order to build your knowledge progressively
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -218,9 +266,15 @@ export default function SubjectPage() {
                 } else if (level.unlocked) {
                   actionButton = (
                     <Link href={`/quiz/${subject.id}/${level.id}`}>
-                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
                         <Play className="w-4 h-4 mr-2" />
-                        {index === 0 || subject.levels[index - 1].completed ? "Start" : "Continue"} Quiz
+                        {index === 0 || subject.levels[index - 1].completed
+                          ? "Start"
+                          : "Continue"}{" "}
+                        Quiz
                       </Button>
                     </Link>
                   );
@@ -232,6 +286,9 @@ export default function SubjectPage() {
                     </Button>
                   );
                 }
+                const completedQuizzes = level.quizzes.filter(
+                  (q: any) => q.completed
+                ).length;
                 return (
                   <div key={level.id} className="relative">
                     {/* Connection Line */}
@@ -240,12 +297,13 @@ export default function SubjectPage() {
                     )}
 
                     <div
-                      className={`flex items-start space-x-4 p-6 rounded-lg border-2 transition-all ${level.completed
-                        ? "border-green-200 bg-green-50"
-                        : level.current
+                      className={`flex items-start space-x-4 p-6 rounded-lg border-2 transition-all ${
+                        level.completed
+                          ? "border-green-200 bg-green-50"
+                          : level.current
                           ? "border-blue-200 bg-blue-50"
                           : "border-slate-200 bg-slate-50"
-                        }`}
+                      }`}
                     >
                       {/* Status Icon */}
                       <div className="flex-shrink-0 mt-1">
@@ -265,51 +323,125 @@ export default function SubjectPage() {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h3
-                              className={`text-lg font-semibold ${level.completed ? "text-green-700" : level.current ? "text-blue-700" : "text-slate-500"
-                                }`}
+                              className={`text-lg font-semibold ${
+                                level.completed
+                                  ? "text-green-700"
+                                  : level.current
+                                  ? "text-blue-700"
+                                  : "text-slate-500"
+                              }`}
                             >
-                              Level {level.id}: {level.name}
+                              Level {level.level_number ?? index + 1}:{" "}
+                              {level.name}
                             </h3>
-                            <p className="text-slate-600 mt-1">{level.description}</p>
+                            <p className="text-slate-600 mt-1">
+                              {level.description}
+                            </p>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Badge variant={level.completed ? "default" : "secondary"}>
-                              {level.completed ? level.quizzes : 0}/{level.quizzes} quizzes
+                            <Badge
+                              variant={
+                                level.completed ? "default" : "secondary"
+                              }
+                            >
+                              {
+                                level.quizzes.filter((q: any) => q.completed)
+                                  .length
+                              }
+                              /{level.quizzes.length} quizzes
                             </Badge>
                             <Badge variant="outline">
                               <Clock className="w-3 h-3 mr-1" />
-                              {level.estimatedTime}
+                              {(() => {
+                                const min =
+                                  parseInt(level.estimatedTime, 10) || 0;
+                                const h = Math.floor(min / 60);
+                                const m = min % 60;
+                                if (h > 0 && m > 0) return `${h}h${m}min`;
+                                if (h > 0) return `${h}h`;
+                                return `${m}min`;
+                              })()}
                             </Badge>
                           </div>
                         </div>
-
+                        {/* List all quizzes for this level */}
+                        <ul className="space-y-2 mb-3">
+                          {level.quizzes.map((quiz: any) => (
+                            <li
+                              key={quiz.id}
+                              className="flex items-center justify-between p-2 rounded bg-white/70 border border-slate-200"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-slate-800">
+                                  {quiz.title}
+                                </span>
+                                {quiz.completed && (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                )}
+                              </div>
+                              {level.unlocked ? (
+                                <Link
+                                  href={`/quiz/${subject.id}/${level.id}/${quiz.id}`}
+                                >
+                                  <Button
+                                    size="sm"
+                                    variant={
+                                      quiz.completed ? "outline" : "default"
+                                    }
+                                  >
+                                    {quiz.completed ? "Review" : "Start"}
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled
+                                  className="opacity-50 cursor-not-allowed bg-gray-500 text-gray-900 border-gray-300"
+                                >
+                                  <Lock className="w-3 h-3 mr-1" />
+                                  {quiz.completed ? "Review" : "Start"}
+                                </Button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                         {/* Progress Bar for Current/Incomplete Levels */}
-                        {!level.completed && level.completedQuizzes > 0 && (
-                          <div className="mb-3">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-slate-600">Progress</span>
-                              <span className="font-medium">
-                                {level.completedQuizzes > 0 ? Math.round((level.completedQuizzes / level.quizzes) * 100) : 0}%
-                              </span>
+                        {!level.completed &&
+                          level.quizzes.filter((q: any) => q.completed).length >
+                            0 && (
+                            <div className="mb-3">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="text-slate-600">Progress</span>
+                                <span className="font-medium">
+                                  {level.quizzes.filter((q: any) => q.completed)
+                                    .length > 0
+                                    ? Math.round(
+                                        (level.quizzes.filter(
+                                          (q: any) => q.completed
+                                        ).length /
+                                          level.quizzes.length) *
+                                          100
+                                      )
+                                    : 0}
+                                  %
+                                </span>
+                              </div>
+                              <Progress
+                                value={
+                                  level.quizzes.filter((q: any) => q.completed)
+                                    .length > 0
+                                    ? (level.quizzes.filter(
+                                        (q: any) => q.completed
+                                      ).length /
+                                        level.quizzes.length) *
+                                      100
+                                    : 0
+                                }
+                                className="h-2"
+                              />
                             </div>
-                            <Progress value={level.completedQuizzes > 0 ? (level.completedQuizzes / level.quizzes) * 100 : 0} className="h-2" />
-                          </div>
-                        )}
-
-                        {/* Topics */}
-                        <div className="mb-4">
-                          <h4 className="text-sm font-medium text-slate-700 mb-2">Topics Covered:</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {level.topics.map((topic: string, topicIndex: number) => (
-                              <Badge key={topicIndex} variant="outline" className="text-xs">
-                                {topic}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Action Button */}
-                        <div className="flex justify-end">{actionButton}</div>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -320,5 +452,5 @@ export default function SubjectPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
