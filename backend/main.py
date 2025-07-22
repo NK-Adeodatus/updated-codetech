@@ -1977,19 +1977,76 @@ def get_leaderboard(period: str = "all-time", db: Session = Depends(get_db)):
 
 # --- API Endpoints ---
 @app.get("/subjects")
-def get_subjects():
-    return SUBJECTS
+def get_subjects(db: Session = Depends(get_db)):
+    subjects = db.query(Subject).all()
+    result = []
+    for subject in subjects:
+        result.append({
+            "id": subject.id,
+            "name": subject.name,
+            "description": subject.description,
+        })
+    return result
 
 @app.get("/subjects/{subject_id}")
-def get_subject(subject_id: int):
-    for subject in SUBJECTS:
-        if subject["id"] == subject_id:
-            return subject
-    raise HTTPException(status_code=404, detail="Subject not found")
+def get_subject(subject_id: int, db: Session = Depends(get_db)):
+    subject = db.query(Subject).filter_by(id=subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    # Optionally include levels and quizzes if needed
+    levels = db.query(Level).filter_by(subject_id=subject.id).order_by(Level.level_number).all()
+    level_list = []
+    for level in levels:
+        quizzes = db.query(Quiz).filter_by(subject_id=subject.id, level_id=level.id).all()
+        quiz_list = []
+        for quiz in quizzes:
+            quiz_list.append({
+                "id": quiz.id,
+                "title": quiz.title,
+            })
+        level_list.append({
+            "id": level.id,
+            "name": level.name,
+            "description": level.description,
+            "level_number": level.level_number,
+            "quizzes": quiz_list,
+        })
+    return {
+        "id": subject.id,
+        "name": subject.name,
+        "description": subject.description,
+        "levels": level_list,
+    }
 
 @app.get("/dashboard-data")
-def get_dashboard_data():
-    return DASHBOARD_DATA
+def get_dashboard_data(db: Session = Depends(get_db)):
+    # Total quizzes completed (all users)
+    total_completed = db.query(UserQuizCompletion).filter_by(completed=True).count()
+    # Average score (all users, all activities with a score)
+    activities_with_score = db.query(UserActivity).filter(UserActivity.score != None).all()
+    scores = [a.score for a in activities_with_score if a.score is not None]
+    avg_score = int(sum(scores) / len(scores)) if scores else 0
+    # Recent activity (last 10)
+    recent_activities = db.query(UserActivity).order_by(UserActivity.timestamp.desc()).limit(10).all()
+    recent = []
+    for act in recent_activities:
+        # Get subject name
+        subject = db.query(Subject).filter_by(id=act.subject_id).first()
+        subject_name = subject.name if subject else ""
+        recent.append({
+            "subject": subject_name,
+            "action": act.action,
+            "time": act.timestamp,
+            "score": act.score,
+        })
+    # Compose stats
+    stats = [
+        {"label": "Total Quizzes Completed", "value": total_completed, "icon": "BookOpen", "color": "text-blue-600"},
+        {"label": "Average Score", "value": f"{avg_score}%", "icon": "Target", "color": "text-green-600"},
+        {"label": "Current Streak", "value": "-", "icon": "TrendingUp", "color": "text-purple-600"},
+        {"label": "Rank Position", "value": "-", "icon": "Trophy", "color": "text-yellow-600"},
+    ]
+    return {"stats": stats, "recentActivity": recent}
 
 @app.get("/user/subjects")
 def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
