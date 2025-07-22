@@ -2008,7 +2008,8 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
             "icon": getattr(subject, "icon", ""),
             "color": getattr(subject, "color", ""),
         }
-        levels = db.query(Level).filter(Level.subject_id == subject.id).all()
+        # Sort levels by level_number (default to id if missing)
+        levels = db.query(Level).filter(Level.subject_id == subject.id).order_by(getattr(Level, 'level_number', Level.id)).all()
         completed_quizzes = 0
         total_quizzes = 0
         level_list = []
@@ -2028,11 +2029,23 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
             if unlocked and not completed and not found_current:
                 current = True
                 found_current = True
+            quiz_list = []
+            for quiz in quizzes:
+                quiz_completed = db.query(UserQuizCompletion).filter_by(user_id=user.id, quiz_id=quiz.id, completed=True).first() is not None
+                quiz_list.append({
+                    "id": quiz.id,
+                    "title": quiz.title,
+                    "completed": quiz_completed,
+                })
+            # Add level_number to the returned data
+            level_number = getattr(level, 'level_number', None)
             level_list.append({
                 "id": level.id,
+                "level_number": level_number,
                 "name": level.name,
                 "description": getattr(level, "description", ""),
-                "quizzes": num_quizzes,
+                "quizzes": quiz_list,
+                "numQuizzes": len(quiz_list),
                 "completed": completed,
                 "unlocked": unlocked,
                 "current": current,
@@ -2044,7 +2057,7 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
         subj["totalQuizzes"] = total_quizzes
         subj["progress"] = int((completed_quizzes / total_quizzes) * 100) if total_quizzes else 0
         subj["totalLevels"] = len(level_list)
-        subj["currentLevel"] = next((i+1 for i, lvl in enumerate(level_list) if lvl["current"]), len(level_list))
+        subj["currentLevel"] = next((lvl["level_number"] for lvl in level_list if lvl["current"] and lvl["level_number"] is not None), None) or next((i+1 for i, lvl in enumerate(level_list) if lvl["current"]), len(level_list))
         result.append(subj)
     return result
 
@@ -2565,3 +2578,83 @@ def admin_cleanup_null_activity(admin_user: User = Depends(get_current_admin_use
     deleted = db.query(UserActivity).filter(UserActivity.score == None).delete()
     db.commit()
     return {"deleted": deleted, "message": "Removed UserActivity records with null score."}
+
+# --- New Endpoint: Get Quiz by Quiz ID ---
+@app.get("/quiz/{quiz_id}")
+def get_quiz_by_id(quiz_id: int, db: Session = Depends(get_db)):
+    quiz = db.query(Quiz).filter_by(id=quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    questions = db.query(Question).filter_by(quiz_id=quiz.id).all()
+    question_list = []
+    for question in questions:
+        choices = db.query(Choice).filter_by(question_id=question.id).all()
+        question_list.append({
+            "id": question.id,
+            "question": question.text,
+            "options": [choice.text for choice in choices],
+            "correct": next((choice.text for choice in choices if choice.is_correct), None),
+            "explanation": None,
+            "resources": [],
+        })
+    return {"title": quiz.title, "questions": question_list}
+
+# --- New Endpoint: Submit Quiz by Quiz ID ---
+@app.post("/quiz/{quiz_id}/submit")
+def submit_quiz_by_id(quiz_id: int, answers: Dict[int, str] = Body(...), db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    quiz = db.query(Quiz).filter_by(id=quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    questions = db.query(Question).filter_by(quiz_id=quiz.id).all()
+    correct = 0
+    total = len(questions)
+    for question in questions:
+        choices = db.query(Choice).filter_by(question_id=question.id).all()
+        correct_choice = next((choice.text for choice in choices if choice.is_correct), None)
+        if answers.get(question.id) == correct_choice:
+            correct += 1
+    score = int((correct / total) * 100) if total else 0
+    user_id = None
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email: str = payload.get("sub")
+            user = get_user(db, email)
+            if user:
+                user_id = user.id
+                # Mark this quiz as completed for the user
+                quiz_completion = db.query(UserQuizCompletion).filter_by(user_id=user.id, quiz_id=quiz.id).first()
+                if not quiz_completion:
+                    quiz_completion = UserQuizCompletion(user_id=user.id, quiz_id=quiz.id, completed=True)
+                    db.add(quiz_completion)
+                else:
+                    quiz_completion.completed = True
+                db.commit()
+                # Check if all quizzes in this level are completed
+                quizzes_in_level = db.query(Quiz).filter_by(subject_id=quiz.subject_id, level_id=quiz.level_id).all()
+                all_completed = all(
+                    db.query(UserQuizCompletion).filter_by(user_id=user.id, quiz_id=q.id, completed=True).first()
+                    for q in quizzes_in_level
+                )
+                quiz_progress = db.query(UserQuizProgress).filter_by(user_id=user.id, subject_id=quiz.subject_id, level_id=quiz.level_id).first()
+                if all_completed:
+                    if quiz_progress:
+                        quiz_progress.completed = 1
+                    else:
+                        quiz_progress = UserQuizProgress(
+                            user_id=user.id,
+                            subject_id=quiz.subject_id,
+                            level_id=quiz.level_id,
+                            completed=1,
+                        )
+                        db.add(quiz_progress)
+                else:
+                    if quiz_progress:
+                        quiz_progress.completed = 0
+                db.commit()
+                update_user_progress(db, user.id, quiz.subject_id)
+        except Exception:
+            pass
+    if user_id:
+        log_user_activity(db, user_id, quiz.subject_id, quiz.level_id, f"Completed Quiz: {quiz.title}", score)
+    return {"score": score, "correct": correct, "total": total}

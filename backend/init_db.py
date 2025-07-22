@@ -114,6 +114,17 @@ def create_tables(cursor):
         FOREIGN KEY (level_id) REFERENCES levels(id)
     )
     """)
+    # user_quiz_completion
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_quiz_completion (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT,
+        quiz_id INT,
+        completed BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
+    )
+    """)
     print("All tables ensured.")
 
 def main():

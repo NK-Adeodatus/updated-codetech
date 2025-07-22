@@ -404,7 +404,13 @@ export default function DashboardPage() {
                               }
                               className="ml-auto"
                             >
-                              {level.quizzes} quizzes
+                              {level.quizzes
+                                ? `${
+                                    level.quizzes.filter(
+                                      (q: any) => q.completed
+                                    ).length
+                                  }/${level.quizzes.length} quizzes`
+                                : "0 quizzes"}
                             </Badge>
                           </div>
                         ))}
@@ -415,32 +421,16 @@ export default function DashboardPage() {
                         const firstUnlocked = subject.levels.find(
                           (level: any) => level.unlocked && !level.completed
                         );
-                        if (firstUnlocked) {
-                          return (
-                            <Link
-                              href={`/quiz/${subject.id}/${firstUnlocked.id}`}
-                            >
-                              <Button className="w-full">
-                                {subject.progress === 0
-                                  ? "Start Learning"
-                                  : "Continue"}
-                                <ArrowRight className="ml-2 w-4 h-4" />
-                              </Button>
-                            </Link>
-                          );
-                        } else {
-                          // All levels completed
-                          return (
-                            <Button
-                              className="w-full"
-                              variant="outline"
-                              disabled
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              All Complete
+                        return (
+                          <Link href={`/subject/${subject.id}`}>
+                            <Button className="w-full">
+                              {subject.progress === 0
+                                ? "Start Learning"
+                                : "Continue"}
+                              <ArrowRight className="ml-2 w-4 h-4" />
                             </Button>
-                          );
-                        }
+                          </Link>
+                        );
                       })()}
                     </div>
                   ))}

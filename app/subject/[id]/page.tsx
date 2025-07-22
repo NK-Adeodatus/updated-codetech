@@ -286,6 +286,9 @@ export default function SubjectPage() {
                     </Button>
                   );
                 }
+                const completedQuizzes = level.quizzes.filter(
+                  (q: any) => q.completed
+                ).length;
                 return (
                   <div key={level.id} className="relative">
                     {/* Connection Line */}
@@ -328,7 +331,8 @@ export default function SubjectPage() {
                                   : "text-slate-500"
                               }`}
                             >
-                              Level {level.id}: {level.name}
+                              Level {level.level_number ?? index + 1}:{" "}
+                              {level.name}
                             </h3>
                             <p className="text-slate-600 mt-1">
                               {level.description}
@@ -340,8 +344,11 @@ export default function SubjectPage() {
                                 level.completed ? "default" : "secondary"
                               }
                             >
-                              {level.completed ? level.quizzes : 0}/
-                              {level.quizzes} quizzes
+                              {
+                                level.quizzes.filter((q: any) => q.completed)
+                                  .length
+                              }
+                              /{level.quizzes.length} quizzes
                             </Badge>
                             <Badge variant="outline">
                               <Clock className="w-3 h-3 mr-1" />
@@ -357,36 +364,84 @@ export default function SubjectPage() {
                             </Badge>
                           </div>
                         </div>
-
+                        {/* List all quizzes for this level */}
+                        <ul className="space-y-2 mb-3">
+                          {level.quizzes.map((quiz: any) => (
+                            <li
+                              key={quiz.id}
+                              className="flex items-center justify-between p-2 rounded bg-white/70 border border-slate-200"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-slate-800">
+                                  {quiz.title}
+                                </span>
+                                {quiz.completed && (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                )}
+                              </div>
+                              {level.unlocked ? (
+                                <Link
+                                  href={`/quiz/${subject.id}/${level.id}/${quiz.id}`}
+                                >
+                                  <Button
+                                    size="sm"
+                                    variant={
+                                      quiz.completed ? "outline" : "default"
+                                    }
+                                  >
+                                    {quiz.completed ? "Review" : "Start"}
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled
+                                  className="opacity-50 cursor-not-allowed bg-gray-500 text-gray-900 border-gray-300"
+                                >
+                                  <Lock className="w-3 h-3 mr-1" />
+                                  {quiz.completed ? "Review" : "Start"}
+                                </Button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                         {/* Progress Bar for Current/Incomplete Levels */}
-                        {!level.completed && level.completedQuizzes > 0 && (
-                          <div className="mb-3">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-slate-600">Progress</span>
-                              <span className="font-medium">
-                                {level.completedQuizzes > 0
-                                  ? Math.round(
-                                      (level.completedQuizzes / level.quizzes) *
-                                        100
-                                    )
-                                  : 0}
-                                %
-                              </span>
+                        {!level.completed &&
+                          level.quizzes.filter((q: any) => q.completed).length >
+                            0 && (
+                            <div className="mb-3">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="text-slate-600">Progress</span>
+                                <span className="font-medium">
+                                  {level.quizzes.filter((q: any) => q.completed)
+                                    .length > 0
+                                    ? Math.round(
+                                        (level.quizzes.filter(
+                                          (q: any) => q.completed
+                                        ).length /
+                                          level.quizzes.length) *
+                                          100
+                                      )
+                                    : 0}
+                                  %
+                                </span>
+                              </div>
+                              <Progress
+                                value={
+                                  level.quizzes.filter((q: any) => q.completed)
+                                    .length > 0
+                                    ? (level.quizzes.filter(
+                                        (q: any) => q.completed
+                                      ).length /
+                                        level.quizzes.length) *
+                                      100
+                                    : 0
+                                }
+                                className="h-2"
+                              />
                             </div>
-                            <Progress
-                              value={
-                                level.completedQuizzes > 0
-                                  ? (level.completedQuizzes / level.quizzes) *
-                                    100
-                                  : 0
-                              }
-                              className="h-2"
-                            />
-                          </div>
-                        )}
-
-                        {/* Action Button */}
-                        <div className="flex justify-end">{actionButton}</div>
+                          )}
                       </div>
                     </div>
                   </div>

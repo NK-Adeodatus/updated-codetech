@@ -17,14 +17,20 @@ export const API_URL = "http://localhost:8000";
  * @param password - User's password
  * @returns Promise with user data
  */
-export async function signup({ email, password }: { email: string; password: string }) {
-    const res = await fetch(`${API_URL}/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) throw new Error((await res.json()).detail || "Signup failed");
-    return res.json();
+export async function signup({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) {
+  const res = await fetch(`${API_URL}/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error((await res.json()).detail || "Signup failed");
+  return res.json();
 }
 
 /**
@@ -33,17 +39,23 @@ export async function signup({ email, password }: { email: string; password: str
  * @param password - User's password
  * @returns Promise with access token
  */
-export async function login({ email, password }: { email: string; password: string }) {
-    const form = new URLSearchParams();
-    form.append("username", email);
-    form.append("password", password);
-    const res = await fetch(`${API_URL}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: form,
-    });
-    if (!res.ok) throw new Error((await res.json()).detail || "Login failed");
-    return res.json();
+export async function login({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) {
+  const form = new URLSearchParams();
+  form.append("username", email);
+  form.append("password", password);
+  const res = await fetch(`${API_URL}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
+  });
+  if (!res.ok) throw new Error((await res.json()).detail || "Login failed");
+  return res.json();
 }
 
 /**
@@ -52,11 +64,11 @@ export async function login({ email, password }: { email: string; password: stri
  * @returns Promise with user data
  */
 export async function getMe(token: string) {
-    const res = await fetch(`${API_URL}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Not authenticated");
-    return res.json();
+  const res = await fetch(`${API_URL}/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Not authenticated");
+  return res.json();
 }
 
 // =============================================================================
@@ -70,9 +82,9 @@ export async function getMe(token: string) {
  * @returns Promise with quiz data
  */
 export async function getQuiz(subjectId: number, levelId: number) {
-    const res = await fetch(`${API_URL}/quiz/${subjectId}/${levelId}`);
-    if (!res.ok) throw new Error("Quiz not found");
-    return res.json();
+  const res = await fetch(`${API_URL}/quiz/${subjectId}/${levelId}`);
+  if (!res.ok) throw new Error("Quiz not found");
+  return res.json();
 }
 
 /**
@@ -83,16 +95,55 @@ export async function getQuiz(subjectId: number, levelId: number) {
  * @param token - Optional JWT token for authenticated users
  * @returns Promise with quiz results and score
  */
-export async function submitQuiz(subjectId: number, levelId: number, answers: Record<number, string>, token?: string) {
-    const headers: any = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${API_URL}/quiz/${subjectId}/${levelId}/submit`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(answers),
-    });
-    if (!res.ok) throw new Error("Quiz submission failed");
-    return res.json();
+export async function submitQuiz(
+  subjectId: number,
+  levelId: number,
+  answers: Record<number, string>,
+  token?: string
+) {
+  const headers: any = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/quiz/${subjectId}/${levelId}/submit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(answers),
+  });
+  if (!res.ok) throw new Error("Quiz submission failed");
+  return res.json();
+}
+
+/**
+ * Get quiz questions for a specific quiz by quizId
+ * @param quizId - Quiz ID
+ * @returns Promise with quiz data
+ */
+export async function getQuizById(quizId: number) {
+  const res = await fetch(`${API_URL}/quiz/${quizId}`);
+  if (!res.ok) throw new Error("Quiz not found");
+  return res.json();
+}
+
+/**
+ * Submit quiz answers for a specific quiz by quizId
+ * @param quizId - Quiz ID
+ * @param answers - Object with question IDs as keys and selected answers as values
+ * @param token - Optional JWT token for authenticated users
+ * @returns Promise with quiz results and score
+ */
+export async function submitQuizById(
+  quizId: number,
+  answers: Record<number, string>,
+  token?: string
+) {
+  const headers: any = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/quiz/${quizId}/submit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(answers),
+  });
+  if (!res.ok) throw new Error("Quiz submission failed");
+  return res.json();
 }
 
 // =============================================================================
@@ -105,9 +156,9 @@ export async function submitQuiz(subjectId: number, levelId: number, answers: Re
  * @returns Promise with leaderboard data
  */
 export async function getLeaderboard(period: string = "all-time") {
-    const res = await fetch(`${API_URL}/leaderboard?period=${period}`);
-    if (!res.ok) throw new Error("Leaderboard not found");
-    return res.json();
+  const res = await fetch(`${API_URL}/leaderboard?period=${period}`);
+  if (!res.ok) throw new Error("Leaderboard not found");
+  return res.json();
 }
 
 /**
@@ -115,9 +166,9 @@ export async function getLeaderboard(period: string = "all-time") {
  * @returns Promise with subjects list
  */
 export async function getSubjects() {
-    const res = await fetch(`${API_URL}/subjects`);
-    if (!res.ok) throw new Error("Failed to fetch subjects");
-    return res.json();
+  const res = await fetch(`${API_URL}/subjects`);
+  if (!res.ok) throw new Error("Failed to fetch subjects");
+  return res.json();
 }
 
 /**
@@ -126,9 +177,9 @@ export async function getSubjects() {
  * @returns Promise with subject data
  */
 export async function getSubject(subjectId: number) {
-    const res = await fetch(`${API_URL}/subjects/${subjectId}`);
-    if (!res.ok) throw new Error("Subject not found");
-    return res.json();
+  const res = await fetch(`${API_URL}/subjects/${subjectId}`);
+  if (!res.ok) throw new Error("Subject not found");
+  return res.json();
 }
 
 /**
@@ -136,9 +187,9 @@ export async function getSubject(subjectId: number) {
  * @returns Promise with dashboard data
  */
 export async function getDashboardData() {
-    const res = await fetch(`${API_URL}/dashboard-data`);
-    if (!res.ok) throw new Error("Failed to fetch dashboard data");
-    return res.json();
+  const res = await fetch(`${API_URL}/dashboard-data`);
+  if (!res.ok) throw new Error("Failed to fetch dashboard data");
+  return res.json();
 }
 
 // =============================================================================
@@ -151,11 +202,11 @@ export async function getDashboardData() {
  * @returns Promise with user's subjects and progress
  */
 export async function getUserSubjects(token: string) {
-    const res = await fetch(`${API_URL}/user/subjects`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch user subjects");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/subjects`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch user subjects");
+  return res.json();
 }
 
 /**
@@ -165,14 +216,21 @@ export async function getUserSubjects(token: string) {
  * @param token - JWT access token
  * @returns Promise with updated progress
  */
-export async function updateUserProgress(subjectId: number, completedQuizzes: number, token: string) {
-    const res = await fetch(`${API_URL}/user/subjects/${subjectId}/progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ completed_quizzes: completedQuizzes }),
-    });
-    if (!res.ok) throw new Error("Failed to update progress");
-    return res.json();
+export async function updateUserProgress(
+  subjectId: number,
+  completedQuizzes: number,
+  token: string
+) {
+  const res = await fetch(`${API_URL}/user/subjects/${subjectId}/progress`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ completed_quizzes: completedQuizzes }),
+  });
+  if (!res.ok) throw new Error("Failed to update progress");
+  return res.json();
 }
 
 /**
@@ -182,13 +240,20 @@ export async function updateUserProgress(subjectId: number, completedQuizzes: nu
  * @param token - JWT access token
  * @returns Promise with completion status
  */
-export async function completeQuizLevel(subjectId: number, levelId: number, token: string) {
-    const res = await fetch(`${API_URL}/user/subjects/${subjectId}/levels/${levelId}/complete`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to mark quiz as completed");
-    return res.json();
+export async function completeQuizLevel(
+  subjectId: number,
+  levelId: number,
+  token: string
+) {
+  const res = await fetch(
+    `${API_URL}/user/subjects/${subjectId}/levels/${levelId}/complete`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (!res.ok) throw new Error("Failed to mark quiz as completed");
+  return res.json();
 }
 
 /**
@@ -197,11 +262,11 @@ export async function completeQuizLevel(subjectId: number, levelId: number, toke
  * @returns Promise with user activity data
  */
 export async function getUserActivity(token: string) {
-    const res = await fetch(`${API_URL}/user/activity`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch user activity");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/activity`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch user activity");
+  return res.json();
 }
 
 /**
@@ -210,11 +275,11 @@ export async function getUserActivity(token: string) {
  * @returns Promise with user stats
  */
 export async function getUserStats(token: string) {
-    const res = await fetch(`${API_URL}/user/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch user stats");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch user stats");
+  return res.json();
 }
 
 /**
@@ -222,9 +287,9 @@ export async function getUserStats(token: string) {
  * @returns Promise with student count
  */
 export async function getTotalStudents() {
-    const res = await fetch(`${API_URL}/total-students`);
-    if (!res.ok) throw new Error("Failed to fetch total students count");
-    return res.json();
+  const res = await fetch(`${API_URL}/total-students`);
+  if (!res.ok) throw new Error("Failed to fetch total students count");
+  return res.json();
 }
 
 /**
@@ -234,13 +299,16 @@ export async function getTotalStudents() {
  * @returns Promise with saved goal
  */
 export async function saveUserGoal(goal: any, token: string) {
-    const res = await fetch(`${API_URL}/user/goals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(goal),
-    });
-    if (!res.ok) throw new Error("Failed to save goal");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/goals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(goal),
+  });
+  if (!res.ok) throw new Error("Failed to save goal");
+  return res.json();
 }
 
 /**
@@ -249,11 +317,11 @@ export async function saveUserGoal(goal: any, token: string) {
  * @returns Promise with user goals
  */
 export async function getUserGoals(token: string) {
-    const res = await fetch(`${API_URL}/user/goals`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch goals");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/goals`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch goals");
+  return res.json();
 }
 
 /**
@@ -263,13 +331,16 @@ export async function getUserGoals(token: string) {
  * @returns Promise with challenge info
  */
 export async function sendChallenge(challenge: any, token: string) {
-    const res = await fetch(`${API_URL}/user/challenge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(challenge),
-    });
-    if (!res.ok) throw new Error("Failed to send challenge");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/challenge`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(challenge),
+  });
+  if (!res.ok) throw new Error("Failed to send challenge");
+  return res.json();
 }
 
 /**
@@ -278,11 +349,11 @@ export async function sendChallenge(challenge: any, token: string) {
  * @returns Promise with challenges
  */
 export async function getUserChallenges(token: string) {
-    const res = await fetch(`${API_URL}/user/challenges`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch challenges");
-    return res.json();
+  const res = await fetch(`${API_URL}/user/challenges`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch challenges");
+  return res.json();
 }
 
 // =============================================================================
@@ -296,11 +367,11 @@ export async function getUserChallenges(token: string) {
  * @returns Promise with all users data
  */
 export async function getAllUsers(token: string) {
-    const res = await fetch(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch users");
-    return res.json();
+  const res = await fetch(`${API_URL}/admin/users`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
 }
 
 /**
@@ -310,11 +381,11 @@ export async function getAllUsers(token: string) {
  * @returns Promise with user's detailed progress
  */
 export async function getUserProgress(userId: number, token: string) {
-    const res = await fetch(`${API_URL}/admin/user/${userId}/progress`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch user progress");
-    return res.json();
+  const res = await fetch(`${API_URL}/admin/user/${userId}/progress`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch user progress");
+  return res.json();
 }
 
 /**
@@ -324,12 +395,12 @@ export async function getUserProgress(userId: number, token: string) {
  * @returns Promise with deletion status
  */
 export async function deleteUser(userId: number, token: string) {
-    const res = await fetch(`${API_URL}/admin/user/${userId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to delete user");
-    return res.json();
+  const res = await fetch(`${API_URL}/admin/user/${userId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to delete user");
+  return res.json();
 }
 
 /**
@@ -338,14 +409,20 @@ export async function deleteUser(userId: number, token: string) {
  * @param token - JWT access token (must be admin)
  * @returns Promise with created user data
  */
-export async function createAdminUser(userData: { email: string; password: string; name: string }, token: string) {
-    const res = await fetch(`${API_URL}/admin/create-admin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(userData),
-    });
-    if (!res.ok) throw new Error("Failed to create admin user");
-    return res.json();
+export async function createAdminUser(
+  userData: { email: string; password: string; name: string },
+  token: string
+) {
+  const res = await fetch(`${API_URL}/admin/create-admin`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(userData),
+  });
+  if (!res.ok) throw new Error("Failed to create admin user");
+  return res.json();
 }
 
 /**
@@ -355,13 +432,16 @@ export async function createAdminUser(userData: { email: string; password: strin
  * @returns Promise with added subject data
  */
 export async function addSubject(subject: any, token: string) {
-    const res = await fetch(`${API_URL}/admin/add-subject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(subject),
-    });
-    if (!res.ok) throw new Error("Failed to add subject");
-    return res.json();
+  const res = await fetch(`${API_URL}/admin/add-subject`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(subject),
+  });
+  if (!res.ok) throw new Error("Failed to add subject");
+  return res.json();
 }
 
 /**
@@ -371,13 +451,16 @@ export async function addSubject(subject: any, token: string) {
  * @returns Promise with added level data
  */
 export async function addLevel(data: any, token: string) {
-    const res = await fetch(`${API_URL}/admin/add-level`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to add level");
-    return res.json();
+  const res = await fetch(`${API_URL}/admin/add-level`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to add level");
+  return res.json();
 }
 
 /**
@@ -387,10 +470,10 @@ export async function addLevel(data: any, token: string) {
  * @returns Promise with reset status
  */
 export async function resetUserProgress(userId: number, token: string) {
-    const res = await fetch(`${API_URL}/admin/reset-user-progress/${userId}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to reset user progress");
-    return res.json();
-} 
+  const res = await fetch(`${API_URL}/admin/reset-user-progress/${userId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to reset user progress");
+  return res.json();
+}
