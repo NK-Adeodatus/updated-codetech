@@ -131,6 +131,7 @@ def clear_all_tables(conn):
         cursor.execute("TRUNCATE TABLE user_progress;")
         cursor.execute("TRUNCATE TABLE user_quiz_progress;")
         cursor.execute("TRUNCATE TABLE users;")
+        cursor.execute("TRUNCATE TABLE user_quiz_completion;")
         # Re-enable foreign key checks
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
