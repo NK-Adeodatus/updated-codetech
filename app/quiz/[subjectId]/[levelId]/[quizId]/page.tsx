@@ -43,7 +43,6 @@ export default function QuizPage() {
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState(false);
   const [answers, setAnswers] = useState<{ [key: number]: string }>({});
   const [timeLeft, setTimeLeft] = useState(300);
   const [quizCompleted, setQuizCompleted] = useState(false);
@@ -77,7 +76,7 @@ export default function QuizPage() {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          handleShowResult();
+          handleQuizComplete();
           return 0;
         }
         return prev - 1;
@@ -100,7 +99,6 @@ export default function QuizPage() {
       if (currentQuestionIndex < currentQuiz.questions.length - 1) {
         setCurrentQuestionIndex(currentQuestionIndex + 1);
         setSelectedAnswer(null);
-        setShowResult(false);
       } else {
         setQuizCompleted(true);
         let correctCount = 0;
@@ -117,20 +115,16 @@ export default function QuizPage() {
     }
   };
 
-  const handleShowResult = () => {
-    setShowResult(true);
-  };
-
   const handleQuizComplete = async () => {
     try {
       const token = localStorage.getItem("authToken");
       if (token) {
         await submitQuizById(quizId, answers, token);
-        router.push(`/subject/${subjectId}`);
+        // Do not redirect here; let the user see their results
       }
     } catch (err) {
       console.error("Error completing quiz:", err);
-      router.push(`/subject/${subjectId}`);
+      // Optionally, show an error or allow retry
     }
   };
 
@@ -208,8 +202,8 @@ export default function QuizPage() {
                 <p className="text-slate-600">
                   You got{" "}
                   {
-                    Object.values(answers).filter(
-                      (answer: string, qid: any) =>
+                    Object.entries(answers).filter(
+                      ([qid, answer]) =>
                         answer ===
                         currentQuiz.questions.find(
                           (q: any) => q.id === Number(qid)
@@ -263,7 +257,8 @@ export default function QuizPage() {
                             <p className="text-slate-600 mt-2">
                               {question.explanation}
                             </p>
-                            {!isCorrect && question.resources && (
+                            {/* Only show Additional Resources if there are any */}
+                            {!isCorrect && question.resources && question.resources.length > 0 && (
                               <div className="mt-3">
                                 <p className="font-medium text-slate-700 mb-2">
                                   Additional Resources:
@@ -426,77 +421,10 @@ export default function QuizPage() {
                 )}
               </div>
 
-              {showResult && (
-                <Alert
-                  className={`$${
-                    selectedAnswer === currentQuestion.correct
-                      ? "border-green-200 bg-green-50"
-                      : "border-red-200 bg-red-50"
-                  }`}
-                >
-                  <div className="flex items-start space-x-3">
-                    {selectedAnswer === currentQuestion.correct ? (
-                      <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                    )}
-                    <div className="flex-1">
-                      <AlertDescription
-                        className={
-                          selectedAnswer === currentQuestion.correct
-                            ? "text-green-700"
-                            : "text-red-700"
-                        }
-                      >
-                        <div className="font-medium mb-2">
-                          {selectedAnswer === currentQuestion.correct
-                            ? "Correct!"
-                            : "Incorrect"}
-                        </div>
-                        <div className="text-slate-700 mb-3">
-                          {currentQuestion.explanation}
-                        </div>
-                        {selectedAnswer !== currentQuestion.correct &&
-                          currentQuestion.resources && (
-                            <div>
-                              <div className="font-medium text-slate-700 mb-2">
-                                Additional Resources:
-                              </div>
-                              <div className="space-y-1">
-                                {currentQuestion.resources.map(
-                                  (resource: any, resourceIndex: number) => (
-                                    <a
-                                      key={resourceIndex}
-                                      href={resource.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center text-blue-600 hover:text-blue-700 text-sm"
-                                    >
-                                      <ExternalLink className="w-3 h-3 mr-1" />
-                                      {resource.title}
-                                    </a>
-                                  )
-                                )}
-                              </div>
-                            </div>
-                          )}
-                      </AlertDescription>
-                    </div>
-                  </div>
-                </Alert>
-              )}
-
-              <div className="flex justify-between pt-4">
-                <Button
-                  variant="outline"
-                  onClick={handleShowResult}
-                  disabled={!selectedAnswer || showResult}
-                >
-                  {showResult ? "Answer Checked" : "Check Answer"}
-                </Button>
+              <div className="flex justify-end pt-4">
                 <Button
                   onClick={handleNextQuestion}
-                  disabled={!showResult}
+                  disabled={!selectedAnswer}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   {currentQuestionIndex < currentQuiz.questions.length - 1 ? (

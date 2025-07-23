@@ -624,6 +624,14 @@ def get_user_subjects(token: str = Depends(oauth2_scheme), db: Session = Depends
             })
             prev_completed = completed
         subj["levels"] = level_list
+        subj["totalLevels"] = len(level_list)
+        subj["currentLevel"] = (
+            next(
+                (lvl["level_number"] for lvl in level_list if lvl["current"] and lvl["level_number"] is not None),
+                None
+            )
+            or next((i + 1 for i, lvl in enumerate(level_list) if lvl["current"]), len(level_list))
+        )
         result.append(subj)
     return result
 
