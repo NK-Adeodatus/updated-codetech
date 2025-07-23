@@ -20,14 +20,16 @@ export const API_URL = "http://localhost:8000";
 export async function signup({
   email,
   password,
+  name,
 }: {
   email: string;
   password: string;
+  name: string;
 }) {
   const res = await fetch(`${API_URL}/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, name }),
   });
   if (!res.ok) throw new Error((await res.json()).detail || "Signup failed");
   return res.json();
@@ -400,80 +402,5 @@ export async function deleteUser(userId: number, token: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Failed to delete user");
-  return res.json();
-}
-
-/**
- * Create a new admin user (admin only)
- * @param userData - User data (email, password, name)
- * @param token - JWT access token (must be admin)
- * @returns Promise with created user data
- */
-export async function createAdminUser(
-  userData: { email: string; password: string; name: string },
-  token: string
-) {
-  const res = await fetch(`${API_URL}/admin/create-admin`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(userData),
-  });
-  if (!res.ok) throw new Error("Failed to create admin user");
-  return res.json();
-}
-
-/**
- * Add a new subject to the platform (admin only)
- * @param subject - Subject data
- * @param token - JWT access token (must be admin)
- * @returns Promise with added subject data
- */
-export async function addSubject(subject: any, token: string) {
-  const res = await fetch(`${API_URL}/admin/add-subject`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(subject),
-  });
-  if (!res.ok) throw new Error("Failed to add subject");
-  return res.json();
-}
-
-/**
- * Add a new level to a subject (admin only)
- * @param data - Level data including subject ID
- * @param token - JWT access token (must be admin)
- * @returns Promise with added level data
- */
-export async function addLevel(data: any, token: string) {
-  const res = await fetch(`${API_URL}/admin/add-level`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to add level");
-  return res.json();
-}
-
-/**
- * Reset a user's progress (admin only)
- * @param userId - User ID to reset
- * @param token - JWT access token (must be admin)
- * @returns Promise with reset status
- */
-export async function resetUserProgress(userId: number, token: string) {
-  const res = await fetch(`${API_URL}/admin/reset-user-progress/${userId}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to reset user progress");
   return res.json();
 }

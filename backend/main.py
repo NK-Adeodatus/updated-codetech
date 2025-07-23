@@ -471,7 +471,10 @@ def get_leaderboard(period: str = "all-time", db: Session = Depends(get_db)):
             }
         user_scores[user.email]["score"] += progress.completed_quizzes
         user_scores[user.email]["quizzes"] += progress.completed_quizzes
-        user_scores[user.email]["subjects"].append(next((s["name"] for s in SUBJECTS if s["id"] == progress.subject_id), ""))
+        # Use the database for subject name lookup
+        subject = db.query(Subject).filter_by(id=progress.subject_id).first()
+        subject_name = subject.name if subject else ""
+        user_scores[user.email]["subjects"].append(subject_name)
     leaderboard_list = list(user_scores.values())
     leaderboard_list.sort(key=lambda x: x["score"], reverse=True)
     for i, entry in enumerate(leaderboard_list):
@@ -641,12 +644,12 @@ def complete_quiz_level(subject_id: int, level_id: int, db: Session = Depends(ge
 
 # --- Helper: Initialize Progress for New User ---
 def initialize_user_progress(db, user_id):
-    for subject in SUBJECTS:
-        # Dynamically count quizzes for this subject from the database
-        quiz_count = db.query(Quiz).filter(Quiz.subject_id == subject["id"]).count()
+    subjects = db.query(Subject).all()
+    for subject in subjects:
+        quiz_count = db.query(Quiz).filter(Quiz.subject_id == subject.id).count()
         progress = UserProgress(
             user_id=user_id,
-            subject_id=subject["id"],
+            subject_id=subject.id,
             progress=0,
             completed_quizzes=0,
             total_quizzes=quiz_count,
@@ -704,12 +707,14 @@ def get_user_activity(token: str = Depends(oauth2_scheme), db: Session = Depends
     activities = db.query(UserActivity).filter_by(user_id=user.id).order_by(UserActivity.timestamp.desc()).limit(10).all()
     result = []
     for act in activities:
-        subject = next((s for s in SUBJECTS if s["id"] == act.subject_id), None)
-        level = next((l for l in subject["levels"] if l["id"] == act.level_id), None) if subject else None
+        # Use the database for subject lookup
+        subject = db.query(Subject).filter_by(id=act.subject_id).first()
+        subject_name = subject.name if subject else ""
+        # Optionally, you can also look up the level name if needed
         result.append({
-            "subject": subject["name"] if subject else "",
+            "subject": subject_name,
             "action": act.action,
-            "level": level["name"] if level else "",
+            "level_id": act.level_id,
             "time": act.timestamp,
             "score": act.score,
         })
@@ -848,7 +853,9 @@ def get_all_users(admin_user: User = Depends(get_current_admin_user), db: Sessio
         # Get last activity
         last_activity = db.query(UserActivity).filter_by(user_id=user.id).order_by(UserActivity.timestamp.desc()).first()
         last_activity_time = last_activity.timestamp if last_activity else ""
-        
+        # Ensure last_activity_time is a string
+        if last_activity_time and not isinstance(last_activity_time, str):
+            last_activity_time = last_activity_time.isoformat()
         result.append(UserWithProgress(
             id=user.id,
             email=user.email,
