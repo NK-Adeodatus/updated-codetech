@@ -774,19 +774,23 @@ def get_user_stats(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
             break
     # Calculate total points (each quiz completed = 10 points + score points)
     total_points = 0
-    quiz_progress_list = db.query(UserQuizProgress).filter(UserQuizProgress.user_id == user.id).all()
-    for qp in quiz_progress_list:
-        if qp.completed == 1:
-            # Base points for completing quiz
-            total_points += 10
-            # Add score points from activity
-            activity = db.query(UserActivity).filter_by(
-                user_id=user.id, 
-                subject_id=qp.subject_id, 
-                level_id=qp.level_id
-            ).first()
-            if activity and activity.score is not None:
-                total_points += activity.score
+    completed_quiz_ids = [uqc.quiz_id for uqc in db.query(UserQuizCompletion).filter_by(user_id=user.id, completed=True).all()]
+    for quiz_id in completed_quiz_ids:
+        total_points += 10
+        # Add score points from activity (if any)
+        activity = (
+            db.query(UserActivity)
+            .filter(
+                UserActivity.user_id == user.id,
+                UserActivity.action.like("Completed Quiz%"),
+                UserActivity.score != None,
+                UserActivity.subject_id == db.query(Quiz.subject_id).filter(Quiz.id == quiz_id).scalar(),
+                UserActivity.level_id == db.query(Quiz.level_id).filter(Quiz.id == quiz_id).scalar()
+            )
+            .first()
+        )
+        if activity and activity.score is not None:
+            total_points += activity.score
     # Rank: get from leaderboard
     leaderboard = (
         db.query(User, UserProgress)

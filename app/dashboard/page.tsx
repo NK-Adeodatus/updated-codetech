@@ -268,54 +268,56 @@ export default function DashboardPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             {/* Continue Learning */}
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Play className="w-5 h-5 text-blue-600" />
-                  <span>Continue Learning</span>
-                </CardTitle>
-                <CardDescription>Pick up where you left off</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {subjects
-                    .filter((s) => s.progress > 0 && s.progress < 100)
-                    .slice(0, 2)
-                    .map((subject) => (
-                      <div
-                        key={subject.id}
-                        className="p-4 border border-slate-200 rounded-lg hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div
-                            className={`w-10 h-10 ${subject.color} rounded-lg flex items-center justify-center text-xl`}
-                          >
-                            {subject.icon}
+            {userStats.totalCompleted > 0 && (
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Play className="w-5 h-5 text-blue-600" />
+                    <span>Continue Learning</span>
+                  </CardTitle>
+                  <CardDescription>Pick up where you left off</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {subjects
+                      .filter((s) => s.progress > 0 && s.progress < 100)
+                      .slice(0, 2)
+                      .map((subject) => (
+                        <div
+                          key={subject.id}
+                          className="p-4 border border-slate-200 rounded-lg hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div
+                              className={`w-10 h-10 ${subject.color} rounded-lg flex items-center justify-center text-xl`}
+                            >
+                              {subject.icon}
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-slate-900">
+                                {subject.name}
+                              </h3>
+                              <p className="text-sm text-slate-600">
+                                Level {subject.currentLevel} out of{" "}
+                                {subject.totalLevels}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-slate-900">
-                              {subject.name}
-                            </h3>
-                            <p className="text-sm text-slate-600">
-                              Level {subject.currentLevel} out of{" "}
-                              {subject.totalLevels}
-                            </p>
+                          <Progress value={subject.progress} className="mb-3" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-slate-600">
+                              {subject.progress}% Complete
+                            </span>
+                            <Link href={`/subject/${subject.id}`}>
+                              <Button size="sm">Continue</Button>
+                            </Link>
                           </div>
                         </div>
-                        <Progress value={subject.progress} className="mb-3" />
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-slate-600">
-                            {subject.progress}% Complete
-                          </span>
-                          <Link href={`/subject/${subject.id}`}>
-                            <Button size="sm">Continue</Button>
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* All Subjects */}
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">

@@ -276,14 +276,28 @@ export default function LeaderboardPage() {
 
                           {/* Stats */}
                           <div className="text-right space-y-1">
-                            <div className="text-2xl font-bold text-slate-900">{user.score.toLocaleString()}</div>
+                            <div className="text-2xl font-bold text-slate-900">
+                              {(userStats && (user.email === userStats.email || user.rank === userStats.rank))
+                                ? userStats.totalPoints?.toLocaleString()
+                                : user.score.toLocaleString()}
+                            </div>
                             <div className="text-xs text-slate-600">Total Points</div>
                             <div className="flex items-center space-x-4 text-xs text-slate-500">
-                              <span>{user.quizzes} quizzes</span>
-                              <span>{user.avgScore}% avg</span>
+                              <span>
+                                {(userStats && (user.email === userStats.email || user.rank === userStats.rank))
+                                  ? `${userStats.totalCompleted} quizzes`
+                                  : `${user.quizzes} quizzes`}
+                              </span>
+                              <span>
+                                {(userStats && (user.email === userStats.email || user.rank === userStats.rank))
+                                  ? `${userStats.avgScore}% avg`
+                                  : `${user.avgScore}% avg`}
+                              </span>
                               <span className="flex items-center">
                                 <TrendingUp className="w-3 h-3 mr-1" />
-                                {user.streak}
+                                {(userStats && (user.email === userStats.email || user.rank === userStats.rank))
+                                  ? userStats.streak
+                                  : user.streak}
                               </span>
                             </div>
                           </div>

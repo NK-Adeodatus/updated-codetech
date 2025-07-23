@@ -149,6 +149,6 @@ conn = mysql.connector.connect(
     database='codetech_db'
 )
 
-seed_database(conn)
-# clear_all_tables(conn)
+# seed_database(conn)
+clear_all_tables(conn)
 conn.close()
