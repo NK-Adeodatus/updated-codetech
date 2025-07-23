@@ -8,7 +8,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Body, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, Boolean, Text
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, Boolean, Text, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
@@ -447,38 +447,63 @@ def submit_quiz(subject_id: int, level_id: int, answers: Dict[int, str] = Body(.
 # --- Leaderboard Endpoint ---
 @app.get("/leaderboard")
 def get_leaderboard(period: str = "all-time", db: Session = Depends(get_db)):
-    leaderboard = (
-        db.query(User, UserProgress)
-        .join(UserProgress, User.id == UserProgress.user_id)
-        .filter(User.role != "admin")
-        .all()
-    )
+    # Determine date range for filtering
+    now = datetime.utcnow()
+    if period == "weekly":
+        # Start of the current week (Monday)
+        start_date = now - timedelta(days=now.weekday())
+    elif period == "monthly":
+        # Start of the current month
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start_date = None  # All time
+
+    # Query UserActivity for completed quizzes in the period
+    activity_query = db.query(UserActivity).filter(UserActivity.action.like("Completed Quiz%"))
+    if start_date:
+        activity_query = activity_query.filter(
+            UserActivity.timestamp >= start_date
+        )
+    activities = activity_query.all()
+
+    # Aggregate points and completions per user
+    user_points = {}
+    user_quizzes = {}
     user_scores = {}
-    for user, progress in leaderboard:
-        if user.email not in user_scores:
-            # NEW: Only count real quiz completions for avgScore
-            activities = db.query(UserActivity).filter_by(user_id=user.id).all()
-            scores = [a.score for a in activities if a.score is not None and a.action.startswith("Completed Quiz")]
-            avg_score = int(sum(scores) / len(scores)) if scores else 0
-            user_scores[user.email] = {
-                "name": user.email.split("@")[0].replace(".", " ").title(),
-                "email": user.email,
-                "score": 0,
-                "quizzes": 0,
-                "avgScore": avg_score,
-                "streak": 0,
-                "subjects": [],
-            }
-        user_scores[user.email]["score"] += progress.completed_quizzes
-        user_scores[user.email]["quizzes"] += progress.completed_quizzes
-        # Use the database for subject name lookup
-        subject = db.query(Subject).filter_by(id=progress.subject_id).first()
-        subject_name = subject.name if subject else ""
-        user_scores[user.email]["subjects"].append(subject_name)
-    leaderboard_list = list(user_scores.values())
-    leaderboard_list.sort(key=lambda x: x["score"], reverse=True)
-    for i, entry in enumerate(leaderboard_list):
-        entry["rank"] = i + 1
+    for act in activities:
+        if act.user_id not in user_points:
+            user_points[act.user_id] = 0
+            user_quizzes[act.user_id] = 0
+            user_scores[act.user_id] = []
+        user_points[act.user_id] += 10
+        if act.score is not None:
+            user_points[act.user_id] += act.score
+            user_scores[act.user_id].append(act.score)
+        user_quizzes[act.user_id] += 1
+
+    # Get user info for top users
+    user_ids_sorted = sorted(user_points, key=lambda uid: user_points[uid], reverse=True)
+    top_user_ids = user_ids_sorted[:20]
+    users = db.query(User).filter(User.id.in_(top_user_ids), User.role != "admin").all()
+    user_map = {u.id: u for u in users}
+
+    leaderboard_list = []
+    for rank, user_id in enumerate(top_user_ids, 1):
+        user = user_map.get(user_id)
+        if not user:
+            continue
+        avg_score = int(sum(user_scores[user_id]) / len(user_scores[user_id])) if user_scores[user_id] else 0
+        leaderboard_list.append({
+            "name": user.email.split("@")[0].replace(".", " ").title(),
+            "email": user.email,
+            "score": user_points[user_id],
+            "quizzes": user_quizzes[user_id],
+            "avgScore": avg_score,
+            "streak": 0,  # Optionally, implement period-based streak
+            "subjects": [],  # Optionally, add subjects for this period
+            "rank": rank,
+        })
+
     return {"period": period, "data": leaderboard_list}
 
 # --- API Endpoints ---
